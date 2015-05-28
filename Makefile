@@ -23,7 +23,12 @@ LDLIBS = -L${P2PPSE_LIB} -lpse -lm -pthread
 
 CC = gcc
 
-all: libpse client serveur
+all: dirs libpse client serveur
+
+dirs:
+	mkdir -p $(P2PPSE_LIB)
+	mkdir -p $(P2PPSE_OBJ)
+	mkdir -p $(P2PPSE_BIN)
 
 libpse: $(LIB_OBJ)
 	rm -f $(LIBRARY)
