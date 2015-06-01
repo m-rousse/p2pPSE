@@ -11,7 +11,7 @@ Il est réalisé dans le cadre d'un projet d'étude sur le thème des communicat
 - client : fonction découpage fichiers
 
 #Infos
-Port d'écoute du serveur 24240
+Port d'écoute du serveur 24240  
 Port d'écoute du client 24241
 
 #Idées
