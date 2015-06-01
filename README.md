@@ -10,6 +10,9 @@ Il est réalisé dans le cadre d'un projet d'étude sur le thème des communicat
 - client : thread download
 - client : fonction découpage fichiers
 
-#infos
+#Infos
 Port d'écoute du serveur 24240
 Port d'écoute du client 24241
+
+#Idées
+- Supprimer le serveur et faire une detection en broadcast

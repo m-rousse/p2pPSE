@@ -10,6 +10,21 @@ sFileList* initFileList(){
 	return fl;
 }
 
+void freeFileList(sFileList* fl){
+	sFile *walk, *next;
+
+	if(fl->first != NULL){
+		walk = fl->first;
+		do{
+			free(walk->name);
+			next = walk->next;
+			free(walk);
+			walk = next;
+		}while(walk != NULL);
+	}
+	free(fl);
+}
+
 void restoreFileList(sFileList* fl){
 	char buf[LIGNE_MAX];
 	int id, len;
@@ -34,7 +49,7 @@ void restoreFileList(sFileList* fl){
 void saveFileList(sFileList* fl){
 	int fd; // File descriptor
 	sFile* walk;
-	char idString[LIGNE_MAX];
+	char idString[LIGNE_MAX] = "";
 
 	printd("saveFileList : Debut");
 	fd = open(SAVEFILE, O_WRONLY | O_TRUNC | O_CREAT);
@@ -57,13 +72,15 @@ sFile* createFile(char* name, int id){
 
 	f = (sFile*) malloc(sizeof(sFile));
 	f->name = malloc(strlen(name)*sizeof(char));
-	strcpy(f->name, name);
+	strncpy(f->name, name, strlen(name)*sizeof(char));
 	f->id = id;
+	f->next = NULL;
 	return f;
 }
 
 void addFileToFileList(sFileList* fl, sFile* f){
 	sFile* walk;
+
 	if(fl->first == NULL){
 		fl->first = f;
 	}else{
@@ -76,13 +93,15 @@ void addFileToFileList(sFileList* fl, sFile* f){
 
 void printFileList(sFileList* fl){
 	sFile* walk;
-	printd("printFileList : Début");
+	char buf[LIGNE_MAX];
+	printd("printFileList : Début\n");
 	if(fl->first != NULL){
 		walk = fl->first;
 		do{
-			fprintf(stderr,"{%d}\t%s\n",walk->id,walk->name);
+			snprintf(buf,LIGNE_MAX,"{%d}\t%s\n",walk->id,walk->name);
+			printd(buf);
 			walk = walk->next;
 		}while(walk != NULL);
 	}
-	printd("printFileList : Fin");
+	printd("printFileList : Fin\n");
 }

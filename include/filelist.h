@@ -19,3 +19,4 @@ void saveFileList(sFileList* fl);
 sFile* createFile(char* name, int id);
 void addFileToFileList(sFileList* fl, sFile* f);
 void printFileList(sFileList* fl);
+void freeFileList(sFileList* fl);
