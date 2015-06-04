@@ -2,6 +2,7 @@
 #include <filelist.h>
 #include <ncurses.h>
 #include <sys/time.h>
+#include <dialog.h>
 
 typedef struct clientArgs{
 	int socket;
@@ -24,7 +25,8 @@ typedef struct commande{
 } commande;
 
 void printMenu();
-void *clientRequest(void *args);
+void *incomingClient(void *args);
+void *outgoingClient(void *args);
 thread_t *createThread();
 void addThread(threadList* list, thread_t *t);
 thread_t *removeThread(threadList** list, thread_t *t);

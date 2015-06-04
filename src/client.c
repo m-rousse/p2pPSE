@@ -7,7 +7,7 @@ int main(){
 	char menu;
 	struct timeval timer, start;
 	long microsec, delta;
-	struct sockaddr_in listenAddr, clientAddr;
+	struct sockaddr_in listenAddr, clientAddr, *remoteAddr;
 	threadList tList;
 	thread_t *walk;
 
@@ -17,9 +17,12 @@ int main(){
 	threadRetVal = (int*) malloc(sizeof(int));
 	tList.first = NULL;
 	tList.last  = NULL;
+	clientAddrLen = sizeof(clientAddr);
 
 	// Initialisation de NCurses (init, getch non bloquants, pas d'affichage des caractères tapés)
 	initscr();
+	//init_dialog(stdin, stdout);
+	dialog_vars.ascii_lines = 1;
 	timeout(0);
 	noecho();
 	printd("Démarrage");
@@ -66,12 +69,11 @@ int main(){
 
 	while(continuer){
 		// Acceptation des nouveaux clients
-		clientAddrLen = sizeof(clientAddr);
 		tmpPeer = accept(listenSocket, (struct sockaddr *) &clientAddr, &clientAddrLen);
 		if(tmpPeer >= 0){
 			addThread(&tList, createThread());
 			tList.last->args->socket = tmpPeer;
-			pthread_create(tList.last->thread, NULL, clientRequest, (void*) tList.last->args);
+			pthread_create(tList.last->thread, NULL, incomingClient, (void*) tList.last->args);
 			nbSox++;
 		}
 
@@ -96,7 +98,7 @@ int main(){
 		gettimeofday(&timer, NULL);
 		delta = timer.tv_sec*1000000+timer.tv_usec-microsec;
 		if(delta > 200000){
-			if(clearScr > 5){
+			if(clearScr > 25){
 				clrtobot();
 				clearScr = 0;
 			}
@@ -122,7 +124,31 @@ int main(){
 				printFileList(fileList);
 				break;
 			case '3':
-				printd("Connection\n");
+				ret = dialog_inputbox("Se connecter a un client", "Entrez l'adresse IP", 10, 30, "", 0);
+				clrtobot();
+
+				if(ret == 0){
+					// Connection au client
+					tmpPeer = socket(AF_INET, SOCK_STREAM, 0);
+					if(tmpPeer >= 0){
+						remoteAddr = resolv(dialog_vars.input_result,"24241");
+						if(remoteAddr != NULL){
+							ret = connect(tmpPeer, (struct sockaddr *) remoteAddr, sizeof(struct sockaddr));
+							if(ret < 0)
+								;// ERREUR
+							freeResolv();
+
+							addThread(&tList, createThread());
+							tList.last->args->socket = tmpPeer;
+							pthread_create(tList.last->thread, NULL, outgoingClient, (void*) tList.last->args);
+							nbSox++;
+						}else{
+							printd("Adresse erronee (resolv)");
+						}
+					}else{
+						erreur_IO("socket");
+					}
+				}
 				break;
 			case '4':
 				printd("Imuseless:)\n");
@@ -139,8 +165,8 @@ int main(){
 	saveFileList(fileList);
 	freeFileList(fileList);
 	close(listenSocket);
+	//end_dialog();
 	endwin();
-
 	return 0;
 }
 
@@ -157,7 +183,29 @@ void printMenu(){
 	//attroff(A_BOLD | A_UNDERLINE);
 }
 
-void *clientRequest(void *args){
+// Gestion des connections provenant d'autres clients
+void *incomingClient(void *args){
+	int* ret;
+	clientArgs *a;
+	commande *comm;
+
+	ret = (int*) malloc(sizeof(int));
+	a = (clientArgs *)args;
+	comm = (commande*) malloc(sizeof(commande));
+
+	// Traitement des commandes
+	comm->type = 1;
+	write(a->socket, comm, sizeof(comm));
+
+	// Fin du thread, fermeture du socket et annonce au thread main que le thread a fini
+	close(a->socket);
+	a->socket = -1;
+	*ret = 42;
+	pthread_exit(ret);
+}
+
+// Gestion des connections à destination d'autres clients
+void *outgoingClient(void *args){
 	int* ret;
 	clientArgs *a;
 	commande *comm;
