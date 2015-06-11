@@ -29,6 +29,7 @@
 #include "msgbox.h"
 #include "msg.h"
 #include "debug.h"
+#include "fichiers.h"
 
 #define FAUX	0
 #define VRAI	1
