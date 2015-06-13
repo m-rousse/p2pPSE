@@ -12,6 +12,7 @@ typedef struct DataSpec_t {
   int canal;                  /* canal de communication */
   sem_t sem;                  /* semaphore de reveil */
   int socketID;					//Identifiant du socket
+  char IPClient[16];			//Adresse IP du client connecté
 } DataSpec;
 
 #endif
