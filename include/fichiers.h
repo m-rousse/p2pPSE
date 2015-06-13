@@ -1,4 +1,8 @@
+#ifndef FICHIERS_H
+#define FICHIERS_H
+
 #include "pse.h"
+
 
 #define NBWORKERS 5 //Nombre de workers du serveur
 #define ATTENTE 2000 //Délais d'attente
@@ -40,6 +44,7 @@ typedef struct clientsDL{
 	int nbPairs; //Nombre d'adresses IP envoyées
 } clientsDL;
 
+extern int nbFichiers;
 
 void initClients(listeClients *clients);
 void initFichiers(listeFichiers *fichiers);
@@ -51,6 +56,9 @@ int annonceFichier(listeFichiers *fichiers, tabFichiers fichiersClient, adresseI
 listeClients *ajoutClient(listeClients *clients, adresseIP IPClient);
 listeFichiers *ajoutFichier(listeFichiers *fichiers, fichierSimple f, adresseIP IPClient);
 int freeFichiers(listeFichiers *fichiers);
-listeFichiers *suppressionIPFichiers(listeFichiers *fichiers, char *adrIP);
+int suppressionIPFichiers(listeFichiers *fichiers, char *adrIP);
 int suppressionClientIP(listeClients *clients, char *adrIP);
 clientsDL *envoiPairs(listeFichiers *fichier, clientsDL *pairsConnus);
+int suppressionFichierListe(listeFichiers *p, listeFichiers *fichiers);
+
+#endif

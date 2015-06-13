@@ -3,6 +3,7 @@
 //Initialisation de liste des clients
 void initClients(listeClients *clients)
 {
+	clients = malloc(sizeof(listeClients));
 	strcpy(clients->adrIP, "");
 	clients->suiv = NULL;
 }
@@ -11,6 +12,7 @@ void initClients(listeClients *clients)
 void initFichiers(listeFichiers *fichiers)
 {
 	fichiers->id = -1;
+	fichiers->nom = malloc(LIGNE_MAX*sizeof(char));
 	strcpy(fichiers->nom,"");
 	fichiers->nbClients = 0;
 	initClients(fichiers->clients);
@@ -66,6 +68,7 @@ clientsDL *envoiPairs(listeFichiers *fichier, clientsDL *pairsConnus)
 
 	c = fichier->clients;
 	i = 0;
+	result = (clientsDL*) malloc(sizeof(clientsDL));
 
 	//si le client ne connait aucun pair
 	if (pairsConnus == NULL)
@@ -168,7 +171,7 @@ listeClients *suppressionClientNum(listeClients *clients, int num)
 
 //Supprime adrIP des clients connectés en mettant à jour la liste de fichiers
 //Retourne 0 s'il est trouvé, 1 sinon
-listeFichiers *suppressionIPFichiers(listeFichiers *fichiers, char *adrIP)
+int suppressionIPFichiers(listeFichiers *fichiers, char *adrIP)
 {
 	//Déclarations
 	listeFichiers *p = fichiers; //parcours de la liste de fichiers
@@ -186,8 +189,9 @@ listeFichiers *suppressionIPFichiers(listeFichiers *fichiers, char *adrIP)
 				nbFichiers--;
 			}
 		}
-		
+		p = fichiers->suiv;
 	}
+	return retour;
 }
 
 //supprime le fichier p de fichiers
@@ -228,6 +232,9 @@ int suppressionClientIP(listeClients *clients, char *adrIP)
 	listeClients *precedent = NULL;
 	listeClients *actu = clients;
 	
+	if(actu == NULL)
+		return 1;
+
 	if (!strcmp(actu->adrIP,adrIP)) //Si c'est le premier client de la liste
 	{
 		clients = clients->suiv;
@@ -259,7 +266,6 @@ int annonceFichier(listeFichiers *fichiers, tabFichiers fichiersClient, adresseI
 	traite = malloc(nbFichiersAjout * sizeof(int)); //Nous permet de savoir si le fichier a déjà été ajouté
 	listeFichiers *f = fichiers; //Parcours de fichiers
 	int i = 0;
-	int continuer = 1;
 	
 	//Initialisation
 	for (i = 0 ; i < nbFichiersAjout ; i++)
@@ -307,7 +313,7 @@ listeClients *ajoutClient(listeClients *clients, adresseIP IPClient)
 	listeClients *nvClient;
 	nvClient = malloc(sizeof(listeClients));
 	
-	strcmp(nvClient->adrIP, IPClient.IP);
+	strcpy(nvClient->adrIP, IPClient.IP);
 	nvClient->suiv = clients;
 	
 	return nvClient;
@@ -321,7 +327,7 @@ listeFichiers *ajoutFichier(listeFichiers *fichiers, fichierSimple f, adresseIP 
 	nvFichier = malloc(sizeof(listeFichiers));
 	
 	nvFichier->id = f.id;
-	strcmp(nvFichier->nom, f.nom);
+	strcpy(nvFichier->nom, f.nom);
 	nvFichier->nbClients = 1;
 	nvFichier->clients = ajoutClient(NULL,IPClient);
 	nvFichier->suiv = fichiers;

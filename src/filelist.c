@@ -16,7 +16,6 @@ void freeFileList(sFileList* fl){
 	if(fl->first != NULL){
 		walk = fl->first;
 		do{
-			free(walk->name);
 			next = walk->next;
 			free(walk);
 			walk = next;
@@ -71,8 +70,7 @@ sFile* createFile(char* name, int id){
 	sFile* f;
 
 	f = (sFile*) malloc(sizeof(sFile));
-	f->name = malloc(strlen(name)*sizeof(char));
-	strncpy(f->name, name, strlen(name)*sizeof(char));
+	strncpy(f->name, name, LIGNE_MAX);
 	f->id = id;
 	f->next = NULL;
 	return f;
@@ -104,4 +102,69 @@ void printFileList(sFileList* fl){
 		}while(walk != NULL);
 	}
 	printd("printFileList : Fin\n");
+}
+
+void printFile(sFile* f){
+	char buf[LIGNE_MAX];
+	snprintf(buf,LIGNE_MAX,"{%d}\t%s\n",f->id,f->name);
+	printd(buf);
+}
+
+//Ajout des fichiers possédés par le client dans la liste de fichiers
+int announceFiles(sFileList *fl, sFileTab clientFiles, int clientIP)
+{
+	//Déclarations
+	int i;
+	sFile *f;
+	
+	//Parcours du tableau des fichiers à ajouter
+	for(i = 0; i < clientFiles.length; i++){
+		f = fl->first;
+		while (f != NULL)
+		{
+			//Si le fichier est déjà dans la liste, on ajoute uniquement l'adresse IP du client
+			if (!strcmp(clientFiles.tab[i].name, f->name))
+			{
+				addClient(&f->clients, clientIP);
+				f->clients.length++;
+				break;
+			}
+			f = f->next;
+		}
+		if(f == NULL){
+			addFile(fl, clientFiles.tab[i], clientIP);
+		}
+	}
+	
+	return 0;
+}
+
+//Ajout d'un fichier au début de la liste
+int addFile(sFileList *fl, sFile f, int clientIP)
+{
+	//Déclarations
+	sFile *new;
+	new = malloc(sizeof(sFile));
+	
+	new->id = f.id;
+	strcpy(new->name, f.name);
+	new->clients.length = 1;
+	addClient(&new->clients, clientIP);
+	new->next = fl->first;
+	fl->first = new;
+	return 0;
+}
+
+//Ajout d'un client dans la liste de clients
+int addClient(sClientsList *clients, int clientIP)
+{
+	//Déclarations
+	sClients *new;
+	new = malloc(sizeof(sClients));
+	
+	new->IP = clientIP;
+	new->next = clients->first;
+	clients->first = new;
+	
+	return 0;
 }

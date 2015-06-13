@@ -12,8 +12,8 @@ LIBRARY		=	$(P2PPSE_LIB)/libpse.a
 LIBP2P		=	$(P2PPSE_LIB)/libp2ppse.a
 LIB_SRC	=	${P2PPSE_SRC}/datathread.c ${P2PPSE_SRC}/erreur.c ${P2PPSE_SRC}/ligne.c ${P2PPSE_SRC}/msg.c ${P2PPSE_SRC}/msgbox.c ${P2PPSE_SRC}/resolv.c
 LIB_OBJ	=	${P2PPSE_OBJ}/datathread.o ${P2PPSE_OBJ}/erreur.o ${P2PPSE_OBJ}/ligne.o ${P2PPSE_OBJ}/msg.o ${P2PPSE_OBJ}/msgbox.o ${P2PPSE_OBJ}/resolv.o
-P2PLIB_SRC	=	${P2PPSE_SRC}/filelist.c ${P2PPSE_SRC}/debug.c
-P2PLIB_OBJ	=	${P2PPSE_OBJ}/filelist.o ${P2PPSE_OBJ}/debug.o
+P2PLIB_SRC	=	${P2PPSE_SRC}/filelist.c ${P2PPSE_SRC}/debug.c ${P2PPSE_SRC}/fichiers.c
+P2PLIB_OBJ	=	${P2PPSE_OBJ}/filelist.o ${P2PPSE_OBJ}/debug.o ${P2PPSE_OBJ}/fichiers.o
 
 SRV_SRC	=	${P2PPSE_SRC}/serveur.c
 CLI_SRC	=	${P2PPSE_SRC}/client.c
@@ -52,4 +52,4 @@ serveur:
 	$(CC) $(CFLAGS) -o $(P2PPSE_BIN)/serveur $(SRV_SRC) $(LDLIBS)
 
 clean:
-	rm -f $(LIBOBJ) $(LIBRARY) $(SRV_BIN) $(CLI_BIN) *~
+	rm -f $(LIBOBJ) $(LIBRARY) $(SRV_BIN) $(CLI_BIN) $(P2PLIB_OBJ) *~

@@ -3,9 +3,11 @@
 #include <ncurses.h>
 #include <sys/time.h>
 #include <dialog.h>
+#include <fichiers.h>
 
 typedef struct clientArgs{
 	int socket;
+	int commandeType;
 } clientArgs;
 
 typedef struct thread_t{
@@ -32,3 +34,8 @@ void addThread(threadList* list, thread_t *t);
 thread_t *removeThread(threadList** list, thread_t *t);
 void printThreads(threadList* list);
 void destroyThread(thread_t *t);
+int initServerConn(struct sockaddr_in **serverAddr);
+int serverOpen(struct sockaddr_in *serverAddr);
+int sendServerCmd(struct sockaddr_in *serverAddr, int cmd);
+int requestServer(struct sockaddr_in *serverAddr, int cmd, void *res, size_t res_len);
+int announceServer(struct sockaddr_in *serverAddr, sFileList* fileList);

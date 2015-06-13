@@ -5,14 +5,14 @@
 
 /* donnees specifiques */
 typedef struct DataSpec_t {
-  pthread_t id;               /* identifiant du thread */
-  int libre;                  /* indicateur de terminaison */
-/* ajouter donnees specifiques après cette ligne */
-  int tid;                    /* identifiant logique */
-  int canal;                  /* canal de communication */
-  sem_t sem;                  /* semaphore de reveil */
+  pthread_t id;					/* identifiant du thread */
+  int libre;					/* indicateur de terminaison */
+  int tid;						/* identifiant logique */
+  int canal;						/* canal de communication */
+  sem_t sem;						/* semaphore de reveil */
   int socketID;					//Identifiant du socket
-  char IPClient[16];			//Adresse IP du client connecté
+  int clientIP;					//Adresse IP du client connecté
+  int quit;
 } DataSpec;
 
 #endif

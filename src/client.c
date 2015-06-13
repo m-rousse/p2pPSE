@@ -7,7 +7,7 @@ int main(){
 	char menu;
 	struct timeval timer, start;
 	long microsec, delta;
-	struct sockaddr_in listenAddr, clientAddr, *remoteAddr;
+	struct sockaddr_in listenAddr, clientAddr, *remoteAddr, *serverAddr;
 	threadList tList;
 	thread_t *walk;
 
@@ -26,6 +26,9 @@ int main(){
 	timeout(0);
 	noecho();
 	printd("Démarrage");
+
+	// Connection au serveur
+	initServerConn(&serverAddr);
 
 	// Initialisation de la liste des fichiers possédés
 	fileList = initFileList();
@@ -68,6 +71,7 @@ int main(){
 	printMenu();
 
 	while(continuer){
+		usleep(500);
 		// Acceptation des nouveaux clients
 		tmpPeer = accept(listenSocket, (struct sockaddr *) &clientAddr, &clientAddrLen);
 		if(tmpPeer >= 0){
@@ -94,6 +98,7 @@ int main(){
 
 		// Récupération d'une éventuelle commande
 		menu = getch();
+
 		// Calcul du temps depuis le dernier refresh
 		gettimeofday(&timer, NULL);
 		delta = timer.tv_sec*1000000+timer.tv_usec-microsec;
@@ -107,6 +112,7 @@ int main(){
 			clearScr++;
 			microsec = (unsigned long long)timer.tv_sec*1000000+timer.tv_usec;
 		}
+
 		// Si un caractère a été tapé, effacer la moitié basse de l'écran (pour le prochain message)
 		if(menu != ERR){
 			clrtobot();
@@ -115,6 +121,8 @@ int main(){
 			refresh();
 		}
 		move(15,0);
+
+		// Traitement de la commande
 		switch(menu){
 			case '1':
 				printd("Affichage des clients\n");
@@ -133,6 +141,7 @@ int main(){
 					if(tmpPeer >= 0){
 						remoteAddr = resolv(dialog_vars.input_result,"24241");
 						if(remoteAddr != NULL){
+							fcntl(tmpPeer, F_SETFL, O_NONBLOCK);
 							ret = connect(tmpPeer, (struct sockaddr *) remoteAddr, sizeof(struct sockaddr));
 							if(ret < 0)
 								;// ERREUR
@@ -140,6 +149,9 @@ int main(){
 
 							addThread(&tList, createThread());
 							tList.last->args->socket = tmpPeer;
+							ret = dialog_inputbox("Se connecter a un client", "Commande", 10, 30, "", 0);
+							if(ret >= 0)
+								tList.last->args->commandeType = atoi(dialog_vars.input_result);
 							pthread_create(tList.last->thread, NULL, outgoingClient, (void*) tList.last->args);
 							nbSox++;
 						}else{
@@ -151,7 +163,11 @@ int main(){
 				}
 				break;
 			case '4':
-				printd("Imuseless:)\n");
+				printw("Say goobye to your server 3:)");
+				sendServerCmd(serverAddr,4);
+				break;
+			case '5':
+				announceServer(serverAddr,fileList);
 				break;
 			case 'q':
 				continuer = 0;
@@ -177,7 +193,7 @@ void printMenu(){
 	printw("1 - Afficher les clients\n");
 	printw("2 - Afficher les fichiers possédés\n");
 	printw("3 - Se connecter à un client\n");
-	printw("4 - Do stuff\n");
+	printw("4 - Arreter le serveur\n");
 	printw("\n");
 	printw("q - Quit\n");
 	//attroff(A_BOLD | A_UNDERLINE);
@@ -194,13 +210,21 @@ void *incomingClient(void *args){
 	comm = (commande*) malloc(sizeof(commande));
 
 	// Traitement des commandes
-	comm->type = 1;
-	write(a->socket, comm, sizeof(comm));
+	recv(a->socket, comm, sizeof(comm), 0);
+
+	switch(comm->type){
+		case 1:
+			move(10,0);
+			printd("Demande d'UL\n");
+			break;
+		default:
+			break;
+	}
 
 	// Fin du thread, fermeture du socket et annonce au thread main que le thread a fini
 	close(a->socket);
 	a->socket = -1;
-	*ret = 42;
+	*ret = comm->type;
 	pthread_exit(ret);
 }
 
@@ -215,13 +239,13 @@ void *outgoingClient(void *args){
 	comm = (commande*) malloc(sizeof(commande));
 
 	// Traitement des commandes
-	comm->type = 1;
-	write(a->socket, comm, sizeof(comm));
+	comm->type = a->commandeType;
+	send(a->socket, comm, sizeof(comm), 0);
 
 	// Fin du thread, fermeture du socket et annonce au thread main que le thread a fini
 	close(a->socket);
 	a->socket = -1;
-	*ret = 42;
+	*ret = comm->type;
 	pthread_exit(ret);
 }
 
@@ -282,4 +306,62 @@ void printThreads(threadList* list){
 		printd("Client thread : %d\n",walk->thread);
 		walk = walk->next;
 	}
+}
+
+int initServerConn(struct sockaddr_in **serverAddr){
+	*serverAddr = resolv("192.168.161.189", "24240");
+	if(*serverAddr == NULL)
+		erreur("Resolution DNS impossible\n");
+	freeResolv();
+	return 0;
+}
+
+int serverOpen(struct sockaddr_in *serverAddr){
+	int serverSock, ret;
+
+	serverSock = socket(AF_INET, SOCK_STREAM, 0);
+	if(serverSock < 0)
+		erreur_IO("socket");
+	ret = connect(serverSock, (struct sockaddr *) serverAddr, sizeof(struct sockaddr_in));
+	if(ret < 0)
+		erreur_IO("connect");
+	return serverSock;
+}
+
+int sendServerCmd(struct sockaddr_in *serverAddr, int cmd){
+	int sock;
+
+	sock = serverOpen(serverAddr);
+	send(sock, (void *) &cmd, sizeof(cmd), 0);
+	close(sock);
+	return 0;
+}
+
+int announceServer(struct sockaddr_in *serverAddr, sFileList* fileList){
+	int sock, i, cmd;
+	size_t flSize;
+	sFile *buf, *walk;
+
+	cmd = 3;
+	i = 0;
+	walk = fileList->first;
+	while(walk != NULL){
+		i++;
+		walk = walk->next;
+	}
+	flSize = i*sizeof(sFile);
+	buf = malloc(flSize);
+	i = 0;
+	walk = fileList->first;
+	while(walk != NULL){
+		memcpy((void *) &buf[i], walk, sizeof(sFile));
+		walk = walk->next;
+		i++;
+	}
+	sock = serverOpen(serverAddr);
+	send(sock, (void *) &cmd, sizeof(cmd), 0);
+	send(sock, (void *) &i, sizeof(i),0);
+	send(sock, (void *) buf, flSize, 0);
+	close(sock);
+	return 0;
 }

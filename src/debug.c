@@ -15,7 +15,10 @@ void printd(char* message, ...){
   buf = malloc(sizeof(char)*LIGNE_MAX);
   snprintf(buf,LIGNE_MAX,tmp, message);
   //vfprintf(stderr, buf, vl);
-  vwprintw(stdscr,buf, vl);
+  if(stdscr != 0)
+    vwprintw(stdscr,buf, vl);
+  else
+    printf("%s",buf);
   free(tmp);
   free(buf);
   va_end(vl);
