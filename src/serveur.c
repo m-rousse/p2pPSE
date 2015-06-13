@@ -14,6 +14,10 @@ int main(int argc, char *argv[])
 	int continuer = 1;
 	fichiers = malloc(sizeof(listeFichiers));
 	nbFichiers = 0;
+	int ecoute = 0;
+	struct sockaddr_in adrEcoute;
+	struct sockaddr_in reception;
+	int canal = 0;
 	
 	//Erreur sur les arguments
 	if (argc != 2)
@@ -31,6 +35,27 @@ int main(int argc, char *argv[])
 		erreur_IO("open journal");
 	}
 	
+	//Socket
+	ecoute = socket (AF_INET, SOCK_STREAM, 0);
+	if (ecoute < 0) {
+		erreur_IO("socket");
+	}
+	
+	adrEcoute.sin_family = AF_INET;
+	adrEcoute.sin_addr.s_addr = INADDR_ANY;
+	adrEcoute.sin_port = htons(PORT);
+	retour = bind (ecoute,  (struct sockaddr *) &adrEcoute, sizeof(adrEcoute));
+	if (retour < 0)
+	{
+		erreur_IO("bind");
+	}
+	
+	retour = listen (ecoute, 20);
+	if (retour < 0) 
+	{
+		erreur_IO("listen");
+	}
+	
 	//Initialisation du pool de workers
 	for (i=0; i<NBWORKERS ; i++)
 	{
@@ -44,6 +69,31 @@ int main(int argc, char *argv[])
 		}
 	}
 	
+	//Traitement des connexions
+	while (1)
+	{
+		canal = accept(ecoute, (struct sockaddr *) &reception, sizeof(reception));
+		if (canal < 0) 
+		{
+			erreur_IO("accept");
+		}
+		
+		i = NBWORKERS - 1;
+		while (i== (NBWORKERS - 1))
+		{
+			for (i=0 ; i< NBWORKERS; i++)
+			{
+				if (workers[i].libre)
+					break;
+			}
+			if (i==(NBWORKERS - 1))
+				usleep(ATTENTE);
+		}
+		
+		workers[i].canal = canal;
+		strcpy(workers[i].IPClient,stringIP(ntohl(reception.sin_addr.s_addr)));
+      }
+  
 	free(fichiers);
 	return 0;
 }
@@ -72,27 +122,6 @@ void *traitement(void *arg)
 		data->libre = 0;
 		fin = 0;
 		
-		//Socket
-		ecoute = socket (AF_INET, SOCK_STREAM, 0);
-		if (ecoute < 0) {
-			erreur_IO("socket");
-		}
-		data->socketID = ecoute;
-		
-		adrEcoute.sin_family = AF_INET;
-		adrEcoute.sin_addr.s_addr = INADDR_ANY;
-		adrEcoute.sin_port = htons(PORT);
-		retour = bind (ecoute,  (struct sockaddr *) &adrEcoute, sizeof(adrEcoute));
-		if (retour < 0)
-		{
-			erreur_IO("bind");
-		}
-		
-		retour = listen (ecoute, 20);
-		if (retour < 0) {
-			erreur_IO("listen");
-		}
-
 	//Côté client, affichage d'un menu :
 	//1. recherche 2. affichage des fichiers disponibles 0. fin de la connexion
 	//(Options non affichées : 3. nouvelle connexion/annonce possession d'un/plusieurs nouveau(x) fichier(s))
@@ -100,39 +129,23 @@ void *traitement(void *arg)
 		
 		while (!fin)
 		{
+			
 			//Réception du choix fait à partir du menu
-			read(ecoute, &requete, sizeof(int));
+			read(data->canal, &requete, sizeof(int));
 			
 			switch(requete)
 			{
 				case 1:
-					retour = pthread_create(&data->id, NULL, traitementRecherche, &data);
-					if (retour != 0)
-					{
-						erreur_IO("pthread_create");
-					}
+					traitementRecherche(data);
 				break;
 				case 2:
-					retour = pthread_create(&data->id, NULL, affichageFichiers, &data);
-					if (retour != 0)
-					{
-						erreur_IO("pthread_create");
-					}
+					affichageFichiers(data);
 				break;
 				case 3:
-					retour = pthread_create(&data->id, NULL, traitementAnnonce, &data);
-					if (retour != 0)
-					{
-						erreur_IO("pthread_create");
-					}
+					traitementAnnonce(data);
 				break;
 				case 0:
-					retour = pthread_create(&data->id, NULL, finConnexion, &data);
-					if (retour != 0)
-					{
-						erreur_IO("pthread_create");
-					}
-					fin = 0;
+					finConnexion(data);
 				break;
 				default:
 				break;				
@@ -142,11 +155,10 @@ void *traitement(void *arg)
 	pthread_exit(NULL);
 }
 
-void *traitementRecherche(void *arg)
+void traitementRecherche(DataSpec *data)
 {
 	//Déclarations
 	char recherche[LIGNE_MAX]="";
-	DataSpec *data = (DataSpec *) arg;
 	int nbTrouves = 0;
 	listeFichiers *resultat, *copie;
 	fichierSimple *envoi;
@@ -165,7 +177,7 @@ void *traitementRecherche(void *arg)
 	write(data->socketID, &nbTrouves, sizeof(int));
 	if (nbTrouves!=0)
 	{
-		//Convertion de la liste en un tableau
+		//Conversion de la liste en un tableau
 		envoi = malloc(nbTrouves*sizeof(fichierSimple));
 		for (i=0; i<nbTrouves ; i++)
 		{
@@ -205,16 +217,15 @@ void *traitementRecherche(void *arg)
 			write(data->socketID, pairs, clients->nbPairs*sizeof(adresseIP));
 		}
 	}
-	pthread_exit(NULL);
 }
 
-void *traitementAnnonce(void *arg)
+void traitementAnnonce(DataSpec *data)
 {
 	//Déclarations
-	DataSpec *data = (DataSpec *) arg;
 	int nbAnnonce = 0;
 	fichierSimple *inter;
 	tabFichiers fichiersClient;
+	adresseIP IPClient;
 	
 	//Annonce nombre de fichiers
 	read(data->socketID, &nbAnnonce, sizeof(int));
@@ -223,15 +234,14 @@ void *traitementAnnonce(void *arg)
 	read(data->socketID, &inter, sizeof(nbAnnonce*sizeof(fichierSimple)));
 	fichiersClient.fichiers = inter;
 	fichiersClient.nbFichiers = nbAnnonce;
-	//Récupérer adresse IP du client ????
+	
+	strcpy(IPClient.IP,data->IPClient);
 	annonceFichier(fichiers, fichiersClient, IPClient);
-	pthread_exit(NULL);
 }
 
-void *affichageFichiers(void *arg)
+void affichageFichiers(DataSpec *data)
 {
 	//Déclarations
-	DataSpec *data = (DataSpec *) arg;
 	fichierSimple *envoi;
 	int i = 0;
 	listeFichiers *resultat;
@@ -255,8 +265,7 @@ void *affichageFichiers(void *arg)
 	write(data->socketID, envoi, nbFichiers*sizeof(fichierSimple));
 }
 
-void *finConnexion(void *arg)
+void finConnexion(DataSpec *data)
 {
-	//Déclarations
-	DataSpec *data = (DataSpec *) arg;
+	suppressionIPFichiers(fichiers, data->IPClient);
 }
