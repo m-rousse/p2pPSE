@@ -33,7 +33,6 @@ listeFichiers *rechercheFichier(listeFichiers *fichiers, char *recherche, int *r
 		{
 			if (result == NULL)
 			{
-				//OK ?????????????????????????????//
 				result = f;
 				result->suiv = NULL;
 			}
@@ -250,23 +249,9 @@ int suppressionClientIP(listeClients *clients, char *adrIP)
 	return 1;
 }
 
-//Remplit tab (déjà dimensionné) avec les noms & id des fichiers de la liste
-void affichageFichiers(listeFichiers *fichiers, fichierSimple *tab)
-{
-	//Déclarations
-	listeFichiers *copie = fichiers;
-	int i=0;
-	
-	for (i=0 ; i<nbFichiers ; i++)
-	{
-		(&tab)[i]->id = copie->id;
-		strcpy((&tab)[i]->nom,copie->nom);
-		copie = copie->suiv;
-	}
-}
 
 //Ajout des fichiers possédés par le client dans la liste de fichiers
-int *annonceFichier(listeFichiers *fichiers, tabFichiers fichiersClient, adresseIP IPClient)
+int annonceFichier(listeFichiers *fichiers, tabFichiers fichiersClient, adresseIP IPClient)
 {
 	//Déclarations
 	int nbFichiersAjout = fichiersClient.nbFichiers;
