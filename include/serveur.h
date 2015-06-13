@@ -6,7 +6,7 @@
 #define PORT 24240
 
 void *traitement(void *arg);
-void *traitementRecherche(void *arg);
-void *traitementAnnonce(void *arg);
-void *affichageFichiers(void *arg);
-void *finConnexion(void *arg);
+void traitementRecherche(DataSpec *data);
+void traitementAnnonce(DataSpec *data);
+void affichageFichiers(DataSpec *data);
+void finConnexion(DataSpec *data);
