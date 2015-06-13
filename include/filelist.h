@@ -2,21 +2,21 @@
 
 #define SAVEFILE "./downloads.txt"
 
-typedef struct sClients{
+typedef struct sClient{
 	int 			IP; 			//adresse IP du client
-	struct sClients *next; 	//client suivant dans la liste
-} sClients;
+	struct sClient *next; 	//client suivant dans la liste
+} sClient;
 
-typedef struct sClientsList{
+typedef struct sClientList{
 	int 			length;	// Number of clients in list
-	sClients 		*first; // First client of the list
-} sClientsList;
+	sClient 		*first; // First client of the list
+} sClientList;
 
 typedef struct sFile {
 	int 			id;					// Identifier of the file
 	char 			name[LIGNE_MAX];	// Name of the file (on filesystem)
 	struct sFile 	*next;				// Next file in case of a list of files
-	sClientsList	clients;			// Clients who have the file
+	sClientList	clients;				// Clients who have the file
 } sFile;
 
 typedef struct sFileList {
@@ -41,6 +41,6 @@ void addFileToFileList(sFileList* fl, sFile* f);
 void printFileList(sFileList* fl);
 void printFile(sFile *f);
 void freeFileList(sFileList* fl);
-int announceFiles(sFileList *fl, sFileTab clientFiles, int clientIP);
-int addFile(sFileList *fl, sFile f, int clientIP);
-int addClient(sClientsList *clients, int clientIP);
+int announceFiles(sFileList *fl, sFileTab clientFiles, unsigned int clientIP);
+int addFile(sFileList *fl, sFile f, unsigned int clientIP);
+int addClient(sClientList *clients, unsigned int clientIP);

@@ -90,16 +90,22 @@ void addFileToFileList(sFileList* fl, sFile* f){
 }
 
 void printFileList(sFileList* fl){
-	sFile* walk;
+	sFile		*fWalk;
+	sClient		*cWalk;
 	char buf[LIGNE_MAX];
+
 	printd("printFileList : Début\n");
-	if(fl->first != NULL){
-		walk = fl->first;
-		do{
-			snprintf(buf,LIGNE_MAX,"{%d}\t%s\n",walk->id,walk->name);
+	fWalk = fl->first;
+	while(fWalk != NULL){
+		snprintf(buf,LIGNE_MAX,"{%d}\t%s\n",fWalk->id,fWalk->name);
+		printd(buf);
+		cWalk = fWalk->clients.first;
+		while(cWalk != NULL){
+			snprintf(buf,LIGNE_MAX,"\t\t%s\n",stringIP(cWalk->IP));
 			printd(buf);
-			walk = walk->next;
-		}while(walk != NULL);
+			cWalk = cWalk->next;
+		}
+		fWalk = fWalk->next;
 	}
 	printd("printFileList : Fin\n");
 }
@@ -111,7 +117,7 @@ void printFile(sFile* f){
 }
 
 //Ajout des fichiers possédés par le client dans la liste de fichiers
-int announceFiles(sFileList *fl, sFileTab clientFiles, int clientIP)
+int announceFiles(sFileList *fl, sFileTab clientFiles, unsigned int clientIP)
 {
 	//Déclarations
 	int i;
@@ -140,7 +146,7 @@ int announceFiles(sFileList *fl, sFileTab clientFiles, int clientIP)
 }
 
 //Ajout d'un fichier au début de la liste
-int addFile(sFileList *fl, sFile f, int clientIP)
+int addFile(sFileList *fl, sFile f, unsigned int clientIP)
 {
 	//Déclarations
 	sFile *new;
@@ -156,11 +162,11 @@ int addFile(sFileList *fl, sFile f, int clientIP)
 }
 
 //Ajout d'un client dans la liste de clients
-int addClient(sClientsList *clients, int clientIP)
+int addClient(sClientList *clients, unsigned int clientIP)
 {
 	//Déclarations
-	sClients *new;
-	new = malloc(sizeof(sClients));
+	sClient *new;
+	new = malloc(sizeof(sClient));
 	
 	new->IP = clientIP;
 	new->next = clients->first;

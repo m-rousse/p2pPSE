@@ -10,17 +10,14 @@ int main(int argc, char *argv[])
 {
 	//Déclarations
 	DataSpec workers[NBWORKERS];
-	int modeLog;
-	int i;
-	int retour;
-	fichiers = initFileList();
-	int ecoute;
-	struct sockaddr_in adrEcoute;
-	struct sockaddr_in reception;
-	socklen_t *receptionLen; 
-	int canal;
+	int modeLog, i, retour, ecoute, canal;
+	struct sockaddr_in adrEcoute, reception;
+	socklen_t receptionLen; 
+	char buf[LIGNE_MAX];
 
-	receptionLen = malloc(sizeof(socklen_t));
+	fichiers = initFileList();
+	//receptionLen = malloc(sizeof(socklen_t));
+	memset(&reception, 0, sizeof(reception));
 	canal = i = retour = nbFichiers = ecoute = 0;
 	continuer = 1;
 	modeLog = O_WRONLY|O_APPEND|O_CREAT;
@@ -77,11 +74,12 @@ int main(int argc, char *argv[])
 	//Traitement des connexions
 	while (continuer)
 	{
-		canal = accept(ecoute, (struct sockaddr *) &reception, receptionLen);
+		canal = accept(ecoute, (struct sockaddr *) &reception, &receptionLen);
 		if (canal < 0 && errno != EAGAIN) 
 		{
 			erreur_IO("accept");
 		}
+		usleep(500);
 		if(errno != EAGAIN){
 			printf("Nouveau client !\n");
 			sem_wait(&semWorkers);
@@ -91,9 +89,10 @@ int main(int argc, char *argv[])
 			
 			workers[i].canal = canal;
 			workers[i].clientIP = ntohl(reception.sin_addr.s_addr);
+			snprintf(buf, LIGNE_MAX, "Nouveau \t(%u)\t : %s\n", reception.sin_addr.s_addr, stringIP(ntohl(reception.sin_addr.s_addr)));
+			printd(buf);
 			sem_post(&workers[i].sem);
 		}
-		usleep(500);
 		errno = ENOENT;
   	}
   	
@@ -244,14 +243,8 @@ void traitementAnnonce(DataSpec *data)
 	recv(data->canal, fileTab.tab, filesSize, 0);
 
 	announceFiles(fichiers, fileTab, data->clientIP);
-	/*int nbAnnonce = 0;
-	sFile *inter;
-	tabFichiers fichiersClient;
-	//Réception du tableau
-	inter = malloc(nbAnnonce*sizeof(fichierSimple));
-	read(data->socketID, &inter, sizeof(nbAnnonce*sizeof(fichierSimple)));
-	fichiersClient.fichiers = inter;
-	fichiersClient.nbFichiers = nbAnnonce;*/
+	free(fileTab.tab);
+	printFileList(fichiers);
 	printf("Annonce des fichiers d'un client !\n");
 }
 
