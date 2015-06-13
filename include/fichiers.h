@@ -20,7 +20,7 @@ typedef struct listeFichiers{
 //Structure simple permettant l'envoi au client
 typedef struct fichierSimple{
 	int id; //Identifiant du fichier
-	char *nom; //Nom du fichier
+	char nom[LIGNE_MAX]; //Nom du fichier
 } fichierSimple;
 
 //structure envoyée au client (avec le nombre d'éléments dans le tableau)
@@ -34,11 +34,12 @@ typedef struct adresseIP {
 	char IP[16];
 } adresseIP;
 
-//Ce que le serveur renvoir au client après une recherche
+//Ce que le serveur renvoi au client après une recherche
 typedef struct clientsDL{
 	adresseIP *pairs; //tableau contenant les adresses IP
 	int nbPairs; //Nombre d'adresses IP envoyées
 } clientsDL;
+
 
 void initClients(listeClients *clients);
 void initFichiers(listeFichiers *fichiers);
@@ -46,10 +47,10 @@ void initClientsDL(clientsDL *liste);
 listeFichiers *rechercheFichier(listeFichiers *fichiers, char *recherche, int *resultats);
 listeClients *suppressionClientNum(listeClients *clients, int num);
 listeClients *clientNum(listeClients *clients, int num);
-int *annonceFichier(listeFichiers *fichiers, tabFichiers fichiersClient, adresseIP IPClient);
+int annonceFichier(listeFichiers *fichiers, tabFichiers fichiersClient, adresseIP IPClient);
 listeClients *ajoutClient(listeClients *clients, adresseIP IPClient);
 listeFichiers *ajoutFichier(listeFichiers *fichiers, fichierSimple f, adresseIP IPClient);
 int freeFichiers(listeFichiers *fichiers);
 listeFichiers *suppressionIPFichiers(listeFichiers *fichiers, char *adrIP);
 int suppressionClientIP(listeClients *clients, char *adrIP);
-void affichageFichiers(listeFichiers *fichiers, fichierSimple *tab);
+clientsDL *envoiPairs(listeFichiers *fichier, clientsDL *pairsConnus);
