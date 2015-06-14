@@ -184,6 +184,8 @@ int main(){
 				break;
 			case 'q':
 				continuer = 0;
+				printw("ByeBye :)");
+				sendServerCmd(serverAddr,8);
 				break;
 			default:
 				break;

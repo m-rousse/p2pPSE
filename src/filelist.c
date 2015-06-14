@@ -213,7 +213,7 @@ void freeFileList(sFileList *fl){
 }
 
 void deleteIPFileList(sFileList *fl, unsigned int IP){
-	sFile *fWalk, *fNext;
+	sFile *fWalk;
 	sClient *cWalk, *cNext, *cPrev;
 	fWalk = fl->first;
 	cPrev = NULL;
@@ -227,13 +227,12 @@ void deleteIPFileList(sFileList *fl, unsigned int IP){
 				else
 					fWalk->clients.first = cNext;
 				free(cWalk);
+				fWalk->clients.length--;
 			}else{
 				cPrev = cWalk;
 			}
 			cWalk = cNext;
 		}
-		fNext = fWalk->next;
-		free(fWalk);
-		fWalk = fNext;
+		fWalk = fWalk->next;
 	}
 }

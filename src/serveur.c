@@ -119,7 +119,7 @@ void *traitement(void *arg)
 
 		if(data->quit){
 			if(data->canal >= 0)
-				finConnexion(data);
+				disconnectClient(data);
 			break;
 		}
 		
@@ -144,7 +144,10 @@ void *traitement(void *arg)
 			case 7:
 				data->quit = VRAI;
 				continuer = FAUX;
-				finConnexion(data);
+				quitServer(data);
+				break;
+			case 8:
+				disconnectClient(data);
 				break;
 			default:
 				break;				
@@ -229,10 +232,16 @@ void affichageFichiers(DataSpec *data)
 	printf("Affichage des fichiers présents.\n");
 }
 
-void finConnexion(DataSpec *data)
+void quitServer(DataSpec *data)
 {
-	//suppressionIPFichiers(fichiers, data->IPClient);
 	freeFileList(fichiers);
+	close(data->canal);
+	data->canal = -1;
+}
+
+void disconnectClient(DataSpec *data)
+{
+	deleteIPFileList(fichiers, data->clientIP);
 	close(data->canal);
 	data->canal = -1;
 }

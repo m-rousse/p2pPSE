@@ -10,4 +10,5 @@ void *traitement(void *arg);
 void traitementRecherche(DataSpec *data);
 void traitementAnnonce(DataSpec *data);
 void affichageFichiers(DataSpec *data);
-void finConnexion(DataSpec *data);
+void quitServer(DataSpec *data);
+void disconnectClient(DataSpec *data);
