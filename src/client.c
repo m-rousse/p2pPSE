@@ -1,13 +1,13 @@
 #include <client.h>
 
+sFileList* fileList;
 int main(){
-	sFileList* fileList;
 	int continuer, val, listenSocket, ret, tmpPeer, nbSox, *threadRetVal, clearScr;
 	socklen_t clientAddrLen;
 	char menu;
 	struct timeval timer, start;
 	long microsec, delta;
-	struct sockaddr_in listenAddr, clientAddr, *remoteAddr, *serverAddr;
+	struct sockaddr_in listenAddr, clientAddr, *serverAddr;
 	threadList tList;
 	thread_t *walk;
 
@@ -35,11 +35,12 @@ int main(){
 	restoreFileList(fileList);
 
 	printd("Annonce des fichiers possédés");
-	announceServer(serverAddr,fileList);
+	announceServer();
 
 	printd("Lancement du thread d'UL");
 	printd("Lancement du thread de DL");
 
+	// ##################### ECOUTE #####################
 	printd("Ouverture du socket d'écoute");
 	listenSocket = socket(AF_INET, SOCK_STREAM, 0);
 	if(listenSocket < 0)
@@ -60,8 +61,8 @@ int main(){
 	if(ret < 0)
 		erreur_IO("listen");
 
-	printd("Affichage des infos du client + menu");
 
+	// ############## MENU + TRAITEMENT ##############
 	refresh();
 	continuer = 1;
 	val = 0;
@@ -72,6 +73,7 @@ int main(){
 
 	while(continuer){
 		usleep(500);
+
 		// Acceptation des nouveaux clients
 		tmpPeer = accept(listenSocket, (struct sockaddr *) &clientAddr, &clientAddrLen);
 		if(tmpPeer >= 0){
@@ -81,6 +83,7 @@ int main(){
 			nbSox++;
 		}
 
+		// Nettoyage des threads finis
 		walk = tList.first;
 		while(walk != NULL){
 			if(walk->args->socket < 0){
@@ -99,7 +102,7 @@ int main(){
 		// Récupération d'une éventuelle commande
 		menu = getch();
 
-		// Calcul du temps depuis le dernier refresh
+		// Calcul du temps depuis le dernier refresh + Affichage
 		gettimeofday(&timer, NULL);
 		delta = timer.tv_sec*1000000+timer.tv_usec-microsec;
 		if(delta > 200000){
@@ -120,76 +123,10 @@ int main(){
 			mvprintw(LINES-1,0,"Temps d'execution : %d", timer.tv_sec - start.tv_sec);
 			refresh();
 		}
-		move(15,0);
+		move(17,0);
 
 		// Traitement de la commande
-		switch(menu){
-			case '1':
-				ret = dialog_inputbox("Recherche", "Entrez votre recherche", 10, 30, "", 0);
-				clrtobot();
-				if(ret == 0){
-					initServerConn(&serverAddr);
-					searchServer(serverAddr, dialog_vars.input_result);
-				}else{
-					ret = dialog_msgbox("Recherche", "\nErreur à la saisie", 10, 30, 0);
-				}
-				break;
-			case '2':
-				requestFileServer(serverAddr);
-				break;
-			case '3':
-				announceServer(serverAddr,fileList);
-				break;
-			case '4':
-				printd("Affichage des clients\n");
-				printThreads(&tList);
-				break;
-			case '5':
-				printFileList(fileList);
-				break;
-			case '6':
-				ret = dialog_inputbox("Se connecter a un client", "Entrez l'adresse IP", 10, 30, "", 0);
-				clrtobot();
-
-				if(ret == 0){
-					// Connection au client
-					tmpPeer = socket(AF_INET, SOCK_STREAM, 0);
-					if(tmpPeer >= 0){
-						remoteAddr = resolv(dialog_vars.input_result,"24241");
-						if(remoteAddr != NULL){
-							fcntl(tmpPeer, F_SETFL, O_NONBLOCK);
-							ret = connect(tmpPeer, (struct sockaddr *) remoteAddr, sizeof(struct sockaddr));
-							if(ret < 0)
-								;// ERREUR
-							freeResolv();
-
-							addThread(&tList, createThread());
-							tList.last->args->socket = tmpPeer;
-							ret = dialog_inputbox("Se connecter a un client", "Commande", 10, 30, "", 0);
-							if(ret >= 0)
-								tList.last->args->commandeType = atoi(dialog_vars.input_result);
-							pthread_create(tList.last->thread, NULL, outgoingClient, (void*) tList.last->args);
-							nbSox++;
-						}else{
-							printd("Adresse erronee (resolv)");
-						}
-					}else{
-						erreur_IO("socket");
-					}
-				}
-				break;
-			case '7':
-				printw("Say goobye to your server 3:)");
-				sendServerCmd(serverAddr,7);
-				break;
-			case 'q':
-				continuer = 0;
-				printw("ByeBye :)");
-				sendServerCmd(serverAddr,8);
-				break;
-			default:
-				break;
-		}
+		processMenu(menu, &tList, &nbSox, &continuer);
 	}
 	
 	printd("Sauvegarde de la liste des fichiers possédés");
@@ -208,6 +145,7 @@ void printMenu(){
 	printw("	================ Menu ================\n");
 	printw("	1 - Rechercher un fichier\n");
 	printw("	2 - Afficher les fichiers disponibles\n");
+	printw("	9 - Télécharger un fichier\n");
 	printw("	\n");
 	printw("	-----> Debug\n");
 	printw("	3 - Annoncer les fichiers possédés\n");
@@ -215,9 +153,113 @@ void printMenu(){
 	printw("	5 - Afficher les fichiers possédés\n");
 	printw("	6 - Se connecter à un client\n");
 	printw("	7 - Arreter le serveur\n");
+	printw("	p - Afficher les peers d'un fichier\n");
 	printw("	\n");
 	printw("	q - Quit\n");
 	//attroff(A_BOLD | A_UNDERLINE);
+}
+
+void processMenu(char keycode, threadList *tList, int *nbSox, int *continuer){
+	int ret, tmpPeer;
+	struct sockaddr_in *remoteAddr;
+	sFile *affClientsF;
+	sClient *affClientsC;
+
+	switch(keycode){
+		case '1':
+			ret = dialog_inputbox("Recherche", "Entrez votre recherche", 10, 30, "", 0);
+			clrtobot();
+			if(ret == 0){
+				searchServer( dialog_vars.input_result);
+			}else{
+				ret = dialog_msgbox("Recherche", "\nErreur à la saisie", 10, 30, 0);
+			}
+			break;
+		case '2':
+			requestFileListFromServer();
+			break;
+		case '3':
+			announceServer();
+			break;
+		case '4':
+			printd("Affichage des clients\n");
+			printThreads(tList);
+			break;
+		case '5':
+			printFileList(fileList);
+			break;
+		case '6':
+			ret = dialog_inputbox("Se connecter a un client", "Entrez l'adresse IP", 10, 30, "", 0);
+			clrtobot();
+
+			if(ret == 0){
+				// Connection au client
+				tmpPeer = socket(AF_INET, SOCK_STREAM, 0);
+				if(tmpPeer >= 0){
+					remoteAddr = resolv(dialog_vars.input_result,"24241");
+					if(remoteAddr != NULL){
+						fcntl(tmpPeer, F_SETFL, O_NONBLOCK);
+						ret = connect(tmpPeer, (struct sockaddr *) remoteAddr, sizeof(struct sockaddr));
+						if(ret < 0)
+							;// ERREUR
+						freeResolv();
+
+						addThread(tList, createThread());
+						tList->last->args->socket = tmpPeer;
+						ret = dialog_inputbox("Se connecter a un client", "Commande", 10, 30, "", 0);
+						if(ret >= 0)
+							tList->last->args->commandeType = atoi(dialog_vars.input_result);
+						pthread_create(tList->last->thread, NULL, outgoingClient, (void*) tList->last->args);
+						(*nbSox)++;
+					}else{
+						printd("Adresse erronee (resolv)");
+					}
+				}else{
+					erreur_IO("socket");
+				}
+			}
+			break;
+		case '7':
+			printw("Say goobye to your server 3:)");
+			sendServerCmd(7);
+			break;
+		case '9':
+			ret = dialog_inputbox("Telecharger un fichier", "Entrez le fileID", 10, 30, "", 0);
+			clrtobot();
+
+			if(ret == 0){
+				requestFile( dialog_vars.input_result);
+			}else{
+				ret = dialog_msgbox("Telecharger un fichier", "\nErreur à la saisie", 10, 30, 0);
+			}
+			break;
+		case 'p':
+			ret = dialog_inputbox("Clients d'un fichier", "Entrez le fileID", 10, 30, "", 0);
+			clrtobot();
+
+			if(ret == 0){
+				affClientsF = getFileById(fileList, atoi(dialog_vars.input_result));
+				if(affClientsF == NULL){
+					ret = dialog_msgbox("Clients d'un fichier !","FileID non trouvé !", 10, 30, 0);
+					break;
+				}
+				affClientsC = affClientsF->clients.first;
+				while(affClientsC != NULL){
+					printClient(affClientsC);
+					affClientsC = affClientsC->next;
+				}
+			}else{
+				ret = dialog_msgbox("Clients d'un fichier", "\nErreur à la saisie", 10, 30, 0);
+			}
+			break;
+		case 'q':
+			*continuer = 0;
+			printw("ByeBye :)");
+			sendServerCmd(8);
+			break;
+		default:
+			break;
+	}
 }
 
 // Gestion des connections provenant d'autres clients
@@ -337,28 +379,32 @@ int initServerConn(struct sockaddr_in **serverAddr){
 	return 0;
 }
 
-int serverOpen(struct sockaddr_in *serverAddr){
+int serverOpen(){
 	int serverSock, ret;
+	struct sockaddr_in *serverAddr;
 
+	initServerConn(&serverAddr);
 	serverSock = socket(AF_INET, SOCK_STREAM, 0);
 	if(serverSock < 0)
-		erreur_IO("socket");
+		return serverSock;
 	ret = connect(serverSock, (struct sockaddr *) serverAddr, sizeof(struct sockaddr_in));
 	if(ret < 0)
-		erreur_IO("connect");
+		return ret;
 	return serverSock;
 }
 
-int sendServerCmd(struct sockaddr_in *serverAddr, int cmd){
+int sendServerCmd(int cmd){
 	int sock;
 
-	sock = serverOpen(serverAddr);
+	sock = serverOpen();
+	if(sock < 0)
+		return -1;
 	send(sock, (void *) &cmd, sizeof(cmd), 0);
 	close(sock);
 	return 0;
 }
 
-int announceServer(struct sockaddr_in *serverAddr, sFileList* fileList){
+int announceServer(){
 	int sock, i, cmd;
 	size_t flSize;
 	sFile *buf, *walk;
@@ -367,7 +413,8 @@ int announceServer(struct sockaddr_in *serverAddr, sFileList* fileList){
 	i = 0;
 	walk = fileList->first;
 	while(walk != NULL){
-		i++;
+		if(walk->exists)
+			i++;
 		walk = walk->next;
 	}
 	flSize = i*sizeof(sFile);
@@ -375,11 +422,13 @@ int announceServer(struct sockaddr_in *serverAddr, sFileList* fileList){
 	i = 0;
 	walk = fileList->first;
 	while(walk != NULL){
-		memcpy((void *) &buf[i], walk, sizeof(sFile));
+		if(walk->exists){
+			memcpy((void *) &buf[i], walk, sizeof(sFile));
+			i++;
+		}
 		walk = walk->next;
-		i++;
 	}
-	sock = serverOpen(serverAddr);
+	sock = serverOpen();
 	send(sock, (void *) &cmd, sizeof(cmd), 0);
 	send(sock, (void *) &i, sizeof(i),0);
 	send(sock, (void *) buf, flSize, 0);
@@ -387,7 +436,7 @@ int announceServer(struct sockaddr_in *serverAddr, sFileList* fileList){
 	return 0;
 }
 
-int searchServer(struct sockaddr_in *serverAddr, char* search){
+int searchServer(char* search){
 	int 		sock, i, cmd, recvSize;
 	size_t 		filesSize;
 	sFileTab 	fileTab;
@@ -397,7 +446,7 @@ int searchServer(struct sockaddr_in *serverAddr, char* search){
 	cmd = 1;
 	memset(buf, 0, LIGNE_MAX*sizeof(char));
 	strcpy(buf, search);
-	sock = serverOpen(serverAddr);
+	sock = serverOpen();
 	send(sock, (void *) &cmd, sizeof(cmd), 0);
 	send(sock, (void *) search, LIGNE_MAX*sizeof(char), 0);
 
@@ -422,14 +471,15 @@ int searchServer(struct sockaddr_in *serverAddr, char* search){
 	return 0;
 }
 
-int requestFileServer(struct sockaddr_in *serverAddr){
+int requestFileListFromServer(){
 	int 		sock, i, cmd, recvSize;
 	size_t 		filesSize;
 	sFileTab 	fileTab;
+	sFile 		*tmp;
 
 	// Envoi de la commande recherche
 	cmd = 2;
-	sock = serverOpen(serverAddr);
+	sock = serverOpen();
 	send(sock, (void *) &cmd, sizeof(cmd), 0);
 
 	// Reception des résultats
@@ -445,7 +495,54 @@ int requestFileServer(struct sockaddr_in *serverAddr){
 
 	//Parcours du tableau des fichiers à afficher
 	for(i = 0; i < fileTab.length; i++){
+		tmp = malloc(sizeof(sFile));
+		initFile(tmp);
+		tmp->id = fileTab.tab[i].id;
+		strcpy(tmp->name, fileTab.tab[i].name);
+		addFileToFileList(fileList, tmp);
 		printFile(&fileTab.tab[i]);
+	}
+	if(recvSize == 0)
+		printd("Aucun fichier n'a été trouvé.\n");
+	close(sock);
+	return 0;
+}
+
+int requestFile(char* fileID){
+	int 		sock, i, cmd, recvSize, iFileID;
+	size_t 		clientsSize;
+	sClientTab 	clientTab;
+	sFile 		*file;
+
+	// Envoi de la commande telechargement + fileID
+	cmd = 9;
+	iFileID = atoi(fileID);
+	sock = serverOpen();
+	send(sock, (void *) &cmd, sizeof(cmd), 0);
+	send(sock, (void *) &iFileID, sizeof(int), 0);
+
+	// Reception des résultats
+	recv(sock, &recvSize, sizeof(recvSize), 0);
+	clientsSize = recvSize*sizeof(sClient);
+	clientTab.length = recvSize;
+	if(recvSize > 0){
+		clientTab.tab = malloc(clientsSize);
+		recv(sock, clientTab.tab, clientsSize, 0);
+	}else{
+		clientTab.tab = NULL;
+	}
+
+	file = getFileById(fileList, iFileID);
+	if(file == NULL){
+		requestFileListFromServer();
+		file = getFileById(fileList, iFileID);
+		if(file == NULL)
+			return -1;
+	}
+
+	//Parcours du tableau des clients à connecter
+	for(i = 0; i < clientTab.length; i++){
+		addClient(&file->clients, clientTab.tab[i].IP);
 	}
 	if(recvSize == 0)
 		printd("Aucun fichier n'a été trouvé.\n");

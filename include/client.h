@@ -27,6 +27,7 @@ typedef struct commande{
 } commande;
 
 void printMenu();
+void processMenu(char keycode, threadList *tList, int *nbSox, int *continuer);
 void *incomingClient(void *args);
 void *outgoingClient(void *args);
 thread_t *createThread();
@@ -35,9 +36,10 @@ thread_t *removeThread(threadList** list, thread_t *t);
 void printThreads(threadList* list);
 void destroyThread(thread_t *t);
 int initServerConn(struct sockaddr_in **serverAddr);
-int serverOpen(struct sockaddr_in *serverAddr);
-int sendServerCmd(struct sockaddr_in *serverAddr, int cmd);
-int requestServer(struct sockaddr_in *serverAddr, int cmd, void *res, size_t res_len);
-int announceServer(struct sockaddr_in *serverAddr, sFileList* fileList);
-int searchServer(struct sockaddr_in *serverAddr, char* search);
-int requestFileServer(struct sockaddr_in *serverAddr);
+int serverOpen();
+int sendServerCmd(int cmd);
+int requestServer(int cmd, void *res, size_t res_len);
+int announceServer();
+int searchServer(char* search);
+int requestFileListFromServer();
+int requestFile(char* fileID);

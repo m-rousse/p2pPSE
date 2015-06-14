@@ -149,6 +149,9 @@ void *traitement(void *arg)
 			case 8:
 				disconnectClient(data);
 				break;
+			case 9:
+				sendFileClient(data);
+				break;
 			default:
 				break;				
 		}
@@ -205,7 +208,7 @@ void traitementAnnonce(DataSpec *data)
 
 void affichageFichiers(DataSpec *data)
 {
-	// //Déclarations
+	// Déclarations
 	sFile *walk;
 	size_t ftSize;
 	sFileTab *ft;
@@ -230,6 +233,47 @@ void affichageFichiers(DataSpec *data)
 	//envoi tab
 	write(data->canal, ft->tab, ftSize);
 	printf("Affichage des fichiers présents.\n");
+}
+
+void sendFileClient(DataSpec *data)
+{
+	// //Déclarations
+	sClient 	*cWalk;
+	sFile 		*fWalk;
+	size_t 		ctSize;
+	sClientTab 	*ct;
+	int 		fileID, numRead;
+
+	fWalk = fichiers->first;
+	ctSize = 0;
+	ct = malloc(sizeof(sClientTab));
+	ct->length = 0;
+	ct->tab = NULL;
+
+	numRead = recv(data->canal, &fileID, sizeof(int),0);
+	if(numRead < 0)
+		; // erreur
+	while(fWalk != NULL){
+		if(fWalk->id == fileID){
+			cWalk = fWalk->clients.first;
+			while(cWalk != NULL){
+				ctSize += sizeof(sClient);
+				ct->tab = realloc(ct->tab, ctSize);
+				ct->tab[ct->length].IP = cWalk->IP;
+				ct->length++;
+				cWalk = cWalk->next;
+			}
+			break;
+		}
+		fWalk = fWalk->next;
+	}
+
+	//Annonce nombre de clients
+	write(data->canal,&ct->length,sizeof(int));
+	//envoi tab
+	if(ct->length > 0)
+		write(data->canal, ct->tab, ctSize);
+	printf("Envoi des clients.\n");
 }
 
 void quitServer(DataSpec *data)

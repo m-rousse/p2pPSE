@@ -6,10 +6,29 @@ sFileList* initFileList(){
 	return fl;
 }
 
+void initFile(sFile *f){
+	f->id = -1;
+	memset(f->name, 0, LIGNE_MAX*sizeof(char));
+	f->next = NULL;
+	f->exists = FAUX;
+	initClientList(&f->clients);
+}
+
+void initClientList(sClientList *cl){
+	cl->length = 0;
+	cl->first = 0;
+}
+
+void initClient(sClient *c){
+	c->IP = 0;
+	c->next = NULL;
+}
+
 void restoreFileList(sFileList* fl){
-	char buf[LIGNE_MAX];
-	int id, len;
-	int fd; // File descriptor
+	char 	buf[LIGNE_MAX];
+	int 	id, len;
+	int 	fd; // File descriptor
+	sFile 	*tmp;
 
 	printd("restoreFileList : Debut");
 	fd = open(SAVEFILE,O_RDONLY);
@@ -18,7 +37,9 @@ void restoreFileList(sFileList* fl){
 			id = atoi(buf);
 			len = lireLigne(fd, buf);
 			if(len > 0){
-				addFileToFileList(fl,createFile(buf, id));
+				tmp = createFile(buf, id);
+				tmp->exists = 1;
+				addFileToFileList(fl,tmp);
 			}else{
 				printd("restoreFileList : Fichier malformé");
 			}
@@ -38,9 +59,11 @@ void saveFileList(sFileList* fl){
 		if(fl->first != NULL){
 			walk = fl->first;
 			do{
-				snprintf(idString, LIGNE_MAX, "%d", walk->id);
-				ecrireLigne(fd, idString);
-				ecrireLigne(fd, walk->name);
+				if(walk->exists){
+					snprintf(idString, LIGNE_MAX, "%d", walk->id);
+					ecrireLigne(fd, idString);
+					ecrireLigne(fd, walk->name);
+				}
 				walk = walk->next;
 			}while(walk != NULL);
 		}
@@ -52,22 +75,30 @@ sFile* createFile(char* name, int id){
 	sFile* f;
 
 	f = (sFile*) malloc(sizeof(sFile));
+	initFile(f);
 	strncpy(f->name, name, LIGNE_MAX);
 	f->id = id;
-	f->next = NULL;
 	return f;
 }
 
 void addFileToFileList(sFileList* fl, sFile* f){
-	sFile* walk;
+	sFile *walk, *last;
 
 	if(fl->first == NULL){
 		fl->first = f;
+		fl->length++;
 	}else{
 		walk = fl->first;
-		while(walk->next != NULL)
-			walk = walk->next;
-		walk->next = f;
+		while(walk != NULL){
+			if(walk->id != f->id){
+				last = walk;
+				walk = walk->next;
+			}else{
+				return;
+			}
+		}
+		last->next = f;
+		fl->length++;
 	}
 }
 
@@ -95,6 +126,12 @@ void printFileList(sFileList* fl){
 void printFile(sFile* f){
 	char buf[LIGNE_MAX];
 	snprintf(buf,LIGNE_MAX,"{%d}\t%s\n",f->id,f->name);
+	printd(buf);
+}
+
+void printClient(sClient* f){
+	char buf[LIGNE_MAX];
+	snprintf(buf,LIGNE_MAX,"%s\n",stringIP(f->IP));
 	printd(buf);
 }
 
@@ -160,6 +197,7 @@ int addClient(sClientList *clients, unsigned int clientIP)
 	new->IP = clientIP;
 	new->next = clients->first;
 	clients->first = new;
+	clients->length++;
 	
 	return 0;
 }
@@ -204,10 +242,12 @@ void freeFileList(sFileList *fl){
 		while(cWalk != NULL){
 			cNext = cWalk->next;
 			free(cWalk);
+			fWalk->clients.length--;
 			cWalk = cNext;
 		}
 		fNext = fWalk->next;
 		free(fWalk);
+		fl->length--;
 		fWalk = fNext;
 	}
 }
@@ -235,4 +275,16 @@ void deleteIPFileList(sFileList *fl, unsigned int IP){
 		}
 		fWalk = fWalk->next;
 	}
+}
+
+sFile* getFileById(sFileList *fl, int id){
+	sFile *walk;
+
+	walk = fl->first;
+	while(walk != NULL){
+		if(walk->id == id)
+			return walk;
+		walk = walk->next;
+	}
+	return walk;
 }

@@ -2,13 +2,16 @@
 
 void printd(char* message, ...){
   char *tmp, *buf;
-  char format[] = "[%s] ";
+  char format[] = "[%s : %s] ";
   va_list vl;
   va_start(vl,message);
 
-  int size = strlen(getenv("_"))+strlen(format)-1;
+  buf = malloc(LIGNE_MAX*sizeof(char));
+  snprintf(buf, LIGNE_MAX, "%d", getpid());
+  int size = strlen(getenv("_"))+strlen(format)+strlen(buf)-2-2+1;
   tmp = (char*) malloc(sizeof(char)*size);
-  snprintf(tmp, size, format, getenv("_"));
+  snprintf(tmp, size, format, getenv("_"),buf);
+  free(buf);
   size = strlen(tmp)+2;
   tmp = realloc(tmp,sizeof(char)*size);
   strcat(tmp,"%s");
