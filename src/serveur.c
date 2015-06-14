@@ -5,6 +5,7 @@ int nbFichiers;
 sFileList *fichiers;
 sem_t semWorkers;
 int continuer;
+pthread_mutex_t mtxFileList = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, char *argv[])
 {
@@ -130,6 +131,7 @@ void *traitement(void *arg)
 		//Réception du choix fait à partir du menu
 		read(data->canal, &requete, sizeof(int));
 		
+		//printf("Commande : %d\n", requete);
 		switch(requete)
 		{
 			case 1:
@@ -200,9 +202,11 @@ void traitementAnnonce(DataSpec *data)
 	fileTab.tab = malloc(filesSize);
 	recv(data->canal, fileTab.tab, filesSize, 0);
 
+	pthread_mutex_lock(&mtxFileList);
 	announceFiles(fichiers, fileTab, data->clientIP);
-	free(fileTab.tab);
 	printFileList(fichiers);
+	pthread_mutex_unlock(&mtxFileList);
+	free(fileTab.tab);
 	printf("Annonce des fichiers d'un client !\n");
 }
 

@@ -1,5 +1,4 @@
 #include "pse.h"
-#include "fichiers.h"
 #include <filelist.h>
 
 #define NBWORKERS 5

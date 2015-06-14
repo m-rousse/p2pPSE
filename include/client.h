@@ -3,7 +3,6 @@
 #include <ncurses.h>
 #include <sys/time.h>
 #include <dialog.h>
-#include <fichiers.h>
 
 typedef struct clientArgs{
 	int socket;
@@ -43,3 +42,4 @@ int announceServer();
 int searchServer(char* search);
 int requestFileListFromServer();
 int requestFile(char* fileID);
+void printFiles();

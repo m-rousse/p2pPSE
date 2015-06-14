@@ -1,5 +1,7 @@
 #include <filelist.h>
 
+extern pthread_mutex_t mtxFileList;
+
 sFileList* initFileList(){
 	sFileList* fl = (sFileList*) malloc(sizeof(sFileList));
 	fl->first = NULL;
@@ -151,7 +153,6 @@ int announceFiles(sFileList *fl, sFileTab clientFiles, unsigned int clientIP)
 			if (!strcmp(clientFiles.tab[i].name, f->name))
 			{
 				addClient(&f->clients, clientIP);
-				f->clients.length++;
 				break;
 			}
 			f = f->next;
@@ -173,7 +174,7 @@ int addFile(sFileList *fl, sFile f, unsigned int clientIP)
 	
 	new->id = f.id;
 	strcpy(new->name, f.name);
-	new->clients.length = 1;
+	new->clients.length = 0;
 	new->clients.first = NULL;
 	addClient(&new->clients, clientIP);
 	new->next = fl->first;
@@ -186,19 +187,20 @@ int addClient(sClientList *clients, unsigned int clientIP)
 {
 	//Déclarations
 	sClient *new, *walk;
+
 	walk = clients->first;
-	while(walk != NULL){
-		if(walk->IP == clientIP)
+	while(walk != NULL){ // Parcours de tous les clients de la liste
+		if(walk->IP == clientIP) // Si le client est déjà présent, s'arrêter
 			return 0;
-		walk = walk->next;
+		walk = walk->next; // Continuer le parcours
 	}
-	new = malloc(sizeof(sClient));
-	
-	new->IP = clientIP;
-	new->next = clients->first;
+	new = malloc(sizeof(sClient)); // Le client n'est pas dans la liste
+
+	new->IP = clientIP;			// Pas besoin de plus d'initialisation
+	new->next = clients->first; // Placer le client en tête de liste
 	clients->first = new;
-	clients->length++;
 	
+	clients->length++;
 	return 0;
 }
 
@@ -253,27 +255,30 @@ void freeFileList(sFileList *fl){
 }
 
 void deleteIPFileList(sFileList *fl, unsigned int IP){
-	sFile *fWalk;
-	sClient *cWalk, *cNext, *cPrev;
+	sFile 		*fWalk;
+	sClient 	*cWalk, *cNext, *cPrev;
+	sClientList *cl;
 	fWalk = fl->first;
-	cPrev = NULL;
-	while(fWalk != NULL){
-		cWalk = fWalk->clients.first;
-		while(cWalk != NULL){
-			cNext = cWalk->next;
-			if(cWalk->IP == IP){
-				if(cPrev != NULL)
-					cPrev->next = cNext;
-				else
-					fWalk->clients.first = cNext;
-				free(cWalk);
-				fWalk->clients.length--;
+	while(fWalk != NULL){ // On parcours tous les fichiers
+		cl = &fWalk->clients;
+		cWalk = cl->first;
+		while(cWalk != NULL){ // On parcours tous les clients possédant le fichier
+			cPrev = NULL;
+			cNext = cWalk->next;	// Ptr vers le client suivant car on supprime p-ê le client
+
+			if(cWalk->IP == IP){	// Si le client est celui que l'on veut supprimer
+				if(cPrev != NULL)	// S'il y a un précédent client
+					cPrev->next = cNext;	// Le next du prec devient next du courant
+				else				// Il est premier client de la liste
+					cl->first = cNext;	// Le premier client devient son suivant
+				free(cWalk);	// On peut supprimer le courant
+				cl->length--;
 			}else{
-				cPrev = cWalk;
+				cPrev = cWalk;	// On avance
 			}
-			cWalk = cNext;
+			cWalk = cNext; // Client suivant
 		}
-		fWalk = fWalk->next;
+		fWalk = fWalk->next; // Fichier suivant
 	}
 }
 

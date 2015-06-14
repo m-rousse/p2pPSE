@@ -107,23 +107,24 @@ int main(){
 		delta = timer.tv_sec*1000000+timer.tv_usec-microsec;
 		if(delta > 200000){
 			if(clearScr > 25){
-				clrtobot();
+				printMenu();
+				move(21,0);
 				clearScr = 0;
 			}
+			printFiles();
 			mvprintw(LINES-1,0,"Temps d'execution : %d \t\t\tNombre de clients : %d", timer.tv_sec - start.tv_sec, nbSox);
 			val++;
 			clearScr++;
 			microsec = (unsigned long long)timer.tv_sec*1000000+timer.tv_usec;
 		}
 
-		// Si un caractère a été tapé, effacer la moitié basse de l'écran (pour le prochain message)
+		// Si un caractère a été tapé, nettoyer l'écran
 		if(menu != ERR){
-			clrtobot();
-			clearScr = 0;
+			clearScr = 25;
 			mvprintw(LINES-1,0,"Temps d'execution : %d", timer.tv_sec - start.tv_sec);
 			refresh();
 		}
-		move(17,0);
+		move(21,0);
 
 		// Traitement de la commande
 		processMenu(menu, &tList, &nbSox, &continuer);
@@ -156,12 +157,16 @@ void printMenu(){
 	printw("	p - Afficher les peers d'un fichier\n");
 	printw("	\n");
 	printw("	q - Quit\n");
+	printw("	\n");
+	printw("	============== Légende ==============\n");
+	printw("	E : Fichier présent sur le disque\n");
+	printw("	P : Nombre de peers possédant le fichier\n");
+	printw("	D : Téléchargement du fichier en cours\n");
 	//attroff(A_BOLD | A_UNDERLINE);
 }
 
 void processMenu(char keycode, threadList *tList, int *nbSox, int *continuer){
-	int ret, tmpPeer;
-	struct sockaddr_in *remoteAddr;
+	int ret;
 	sFile *affClientsF;
 	sClient *affClientsC;
 
@@ -189,35 +194,7 @@ void processMenu(char keycode, threadList *tList, int *nbSox, int *continuer){
 			printFileList(fileList);
 			break;
 		case '6':
-			ret = dialog_inputbox("Se connecter a un client", "Entrez l'adresse IP", 10, 30, "", 0);
-			clrtobot();
-
-			if(ret == 0){
-				// Connection au client
-				tmpPeer = socket(AF_INET, SOCK_STREAM, 0);
-				if(tmpPeer >= 0){
-					remoteAddr = resolv(dialog_vars.input_result,"24241");
-					if(remoteAddr != NULL){
-						fcntl(tmpPeer, F_SETFL, O_NONBLOCK);
-						ret = connect(tmpPeer, (struct sockaddr *) remoteAddr, sizeof(struct sockaddr));
-						if(ret < 0)
-							;// ERREUR
-						freeResolv();
-
-						addThread(tList, createThread());
-						tList->last->args->socket = tmpPeer;
-						ret = dialog_inputbox("Se connecter a un client", "Commande", 10, 30, "", 0);
-						if(ret >= 0)
-							tList->last->args->commandeType = atoi(dialog_vars.input_result);
-						pthread_create(tList->last->thread, NULL, outgoingClient, (void*) tList->last->args);
-						(*nbSox)++;
-					}else{
-						printd("Adresse erronee (resolv)");
-					}
-				}else{
-					erreur_IO("socket");
-				}
-			}
+			ret = dialog_msgbox("Se connecter a un client", "Commande supprimee", 10, 30, 1);
 			break;
 		case '7':
 			printw("Say goobye to your server 3:)");
@@ -372,7 +349,7 @@ void printThreads(threadList* list){
 }
 
 int initServerConn(struct sockaddr_in **serverAddr){
-	*serverAddr = resolv("172.16.144.228", "24240");
+	*serverAddr = resolv("172.16.144.238", "24240");
 	if(*serverAddr == NULL)
 		erreur("Resolution DNS impossible\n");
 	freeResolv();
@@ -500,7 +477,7 @@ int requestFileListFromServer(){
 		tmp->id = fileTab.tab[i].id;
 		strcpy(tmp->name, fileTab.tab[i].name);
 		addFileToFileList(fileList, tmp);
-		printFile(&fileTab.tab[i]);
+		//printFile(&fileTab.tab[i]);
 	}
 	if(recvSize == 0)
 		printd("Aucun fichier n'a été trouvé.\n");
@@ -540,6 +517,8 @@ int requestFile(char* fileID){
 			return -1;
 	}
 
+	// ############ CLEAN FILES CLIENT TABLE ############
+
 	//Parcours du tableau des clients à connecter
 	for(i = 0; i < clientTab.length; i++){
 		addClient(&file->clients, clientTab.tab[i].IP);
@@ -548,4 +527,30 @@ int requestFile(char* fileID){
 		printd("Aucun fichier n'a été trouvé.\n");
 	close(sock);
 	return 0;
+}
+
+void printFiles(){
+	sFile 	*walk;
+	char	buf[LIGNE_MAX];
+
+	wprintw(stdscr,"\t======== Téléchargements =======\n");
+	wprintw(stdscr,"\t");
+	attron(A_BOLD | A_UNDERLINE);
+	wprintw(stdscr,"fileID\tE\tP\tD\t");
+	attroff(A_BOLD | A_UNDERLINE);
+	wprintw(stdscr,"\n");
+	walk = fileList->first;
+	while(walk != NULL){
+		snprintf(buf, LIGNE_MAX, "\t%6d\t%d\t%d\t0\t\n", walk->id, walk->exists, walk->clients.length);
+		wprintw(stdscr,buf);
+		walk = walk->next;
+	}
+}
+
+void *tUL(void *arg)
+{
+	//Déclarations
+	DataSpec *data = (DataSpec *) arg;
+	printf("C'est la fin pour moi !\n");
+	pthread_exit(NULL);
 }
