@@ -1,27 +1,9 @@
 #include <filelist.h>
 
-void sendFileList(){
-	printd("FileList : Liste envoyée au serveur !");
-}
-
 sFileList* initFileList(){
 	sFileList* fl = (sFileList*) malloc(sizeof(sFileList));
 	fl->first = NULL;
 	return fl;
-}
-
-void freeFileList(sFileList* fl){
-	sFile *walk, *next;
-
-	if(fl->first != NULL){
-		walk = fl->first;
-		do{
-			next = walk->next;
-			free(walk);
-			walk = next;
-		}while(walk != NULL);
-	}
-	free(fl);
 }
 
 void restoreFileList(sFileList* fl){
@@ -155,6 +137,7 @@ int addFile(sFileList *fl, sFile f, unsigned int clientIP)
 	new->id = f.id;
 	strcpy(new->name, f.name);
 	new->clients.length = 1;
+	new->clients.first = NULL;
 	addClient(&new->clients, clientIP);
 	new->next = fl->first;
 	fl->first = new;
@@ -165,7 +148,13 @@ int addFile(sFileList *fl, sFile f, unsigned int clientIP)
 int addClient(sClientList *clients, unsigned int clientIP)
 {
 	//Déclarations
-	sClient *new;
+	sClient *new, *walk;
+	walk = clients->first;
+	while(walk != NULL){
+		if(walk->IP == clientIP)
+			return 0;
+		walk = walk->next;
+	}
 	new = malloc(sizeof(sClient));
 	
 	new->IP = clientIP;
@@ -173,4 +162,78 @@ int addClient(sClientList *clients, unsigned int clientIP)
 	clients->first = new;
 	
 	return 0;
+}
+
+//Recherche d'un fichier
+//Prend en argument la liste des fichiers, le nom du fichier recherché
+//Si des fichiers correspondent, renvoie une liste de fichiers et resultats contient le nombre de fichiers correspondant
+//Si le fichier n'est pas trouvé, renvoie NULL
+sFileTab *searchFileList(sFileList *fl, char *search)
+{
+	//Déclarations
+	sFile *walk; 			//Permet le parcours de la liste de fichiers
+	sFileTab *result; 		//Structure à renvoyer
+	size_t tabSize = 0;
+	
+	result = malloc(sizeof(sFileTab));
+	result->length = 0;
+	result->tab = NULL;
+	walk = fl->first;
+
+	while (walk != NULL)
+	{
+		if (strstr(walk->name, search) != NULL)
+		{
+			tabSize += sizeof(sFile);
+			result->tab = realloc(result->tab, tabSize);
+			strcpy(result->tab[result->length].name,walk->name);
+			result->tab[result->length].id = walk->id;
+			result->length++;
+		}
+		walk = walk->next;
+	}
+	return result;
+}
+
+void freeFileList(sFileList *fl){
+	sFile *fWalk, *fNext;
+	sClient *cWalk, *cNext;
+	fWalk = fl->first;
+	while(fWalk != NULL){
+		cWalk = fWalk->clients.first;
+		while(cWalk != NULL){
+			cNext = cWalk->next;
+			free(cWalk);
+			cWalk = cNext;
+		}
+		fNext = fWalk->next;
+		free(fWalk);
+		fWalk = fNext;
+	}
+}
+
+void deleteIPFileList(sFileList *fl, unsigned int IP){
+	sFile *fWalk, *fNext;
+	sClient *cWalk, *cNext, *cPrev;
+	fWalk = fl->first;
+	cPrev = NULL;
+	while(fWalk != NULL){
+		cWalk = fWalk->clients.first;
+		while(cWalk != NULL){
+			cNext = cWalk->next;
+			if(cWalk->IP == IP){
+				if(cPrev != NULL)
+					cPrev->next = cNext;
+				else
+					fWalk->clients.first = cNext;
+				free(cWalk);
+			}else{
+				cPrev = cWalk;
+			}
+			cWalk = cNext;
+		}
+		fNext = fWalk->next;
+		free(fWalk);
+		fWalk = fNext;
+	}
 }

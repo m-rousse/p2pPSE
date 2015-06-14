@@ -39,3 +39,5 @@ int serverOpen(struct sockaddr_in *serverAddr);
 int sendServerCmd(struct sockaddr_in *serverAddr, int cmd);
 int requestServer(struct sockaddr_in *serverAddr, int cmd, void *res, size_t res_len);
 int announceServer(struct sockaddr_in *serverAddr, sFileList* fileList);
+int searchServer(struct sockaddr_in *serverAddr, char* search);
+int requestFileServer(struct sockaddr_in *serverAddr);

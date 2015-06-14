@@ -13,7 +13,6 @@ int main(int argc, char *argv[])
 	int modeLog, i, retour, ecoute, canal;
 	struct sockaddr_in adrEcoute, reception;
 	socklen_t receptionLen; 
-	char buf[LIGNE_MAX];
 
 	fichiers = initFileList();
 	//receptionLen = malloc(sizeof(socklen_t));
@@ -89,8 +88,6 @@ int main(int argc, char *argv[])
 			
 			workers[i].canal = canal;
 			workers[i].clientIP = ntohl(reception.sin_addr.s_addr);
-			snprintf(buf, LIGNE_MAX, "Nouveau \t(%u)\t : %s\n", reception.sin_addr.s_addr, stringIP(ntohl(reception.sin_addr.s_addr)));
-			printd(buf);
 			sem_post(&workers[i].sem);
 		}
 		errno = ENOENT;
@@ -129,9 +126,6 @@ void *traitement(void *arg)
 		//Quand le canal est attribué
 		data->libre = FAUX;
 		
-		//Côté client, affichage d'un menu :
-		//1. recherche 2. affichage des fichiers disponibles 0. fin de la connexion
-		//(Options non affichées : 3. nouvelle connexion/annonce possession d'un/plusieurs nouveau(x) fichier(s))
 		requete = -1;
 		//Réception du choix fait à partir du menu
 		read(data->canal, &requete, sizeof(int));
@@ -147,10 +141,9 @@ void *traitement(void *arg)
 			case 3:
 				traitementAnnonce(data);
 				break;
-			case 4:
+			case 7:
 				data->quit = VRAI;
 				continuer = FAUX;
-			case 0:
 				finConnexion(data);
 				break;
 			default:
@@ -166,66 +159,25 @@ void *traitement(void *arg)
 void traitementRecherche(DataSpec *data)
 {
 	//Déclarations
-	// char recherche[LIGNE_MAX]="";
-	// int nbTrouves = 0;
-	// listeFichiers *resultat, *copie;
-	// fichierSimple *envoi;
-	// int i=0;
-	// int numFichier = 0;
-	// clientsDL *clients;
-	// clients = (clientsDL*) malloc(sizeof(clientsDL));
-	// clients->pairs = malloc(NBDOWNLOAD*sizeof(adresseIP));
-	// adresseIP *pairs;
-	
-	// //Réception du choix fait à partir du menu
-	// read(data->socketID, &recherche, LIGNE_MAX*sizeof(char));
-	// resultat = rechercheFichier(fichiers,recherche,&nbTrouves);
-	// copie = resultat;
-	
-	// //Envoi du nombre de fichiers trouvés
-	// write(data->socketID, &nbTrouves, sizeof(int));
-	// if (nbTrouves!=0)
-	// {
-	// 	//Conversion de la liste en un tableau
-	// 	envoi = malloc(nbTrouves*sizeof(fichierSimple));
-	// 	for (i=0; i<nbTrouves ; i++)
-	// 	{
-	// 		if (resultat == NULL)
-	// 			erreur_IO("fonction recherche");
-	// 		envoi[i].id = resultat->id;
-	// 		strcpy(envoi[i].nom,resultat->nom);
-	// 		resultat = resultat->suiv;
-	// 	}
-		
-	// 	//Envoi le tableau de résultat
-	// 	write(data->socketID,resultat, nbTrouves*sizeof(fichierSimple));
-		
-	// 	//Récupère le numéro du fichier voulu par le client
-	// 	read(data->socketID, &numFichier, sizeof(int));
-		
-	// 	//Traitement de la demande
-	// 	if (numFichier != 0) //Si le client veut un fichier
-	// 	{
-	// 		i = 0;
-	// 		while (i < numFichier)
-	// 		{
-	// 			if (copie == NULL)
-	// 				erreur_IO("recherche");
-					
-	// 			copie = copie->suiv;
-	// 			i++;
-	// 		}
-	// 		clients = envoiPairs(copie, NULL);
-	// 		pairs = malloc(clients->nbPairs*sizeof(adresseIP));
-	// 		for (i = 0; i < clients->nbPairs ; i++)
-	// 			strcpy(pairs[i].IP,clients->pairs[i].IP);
-				
-	// 		//Annonce du nombre de pairs
-	// 		write(data->socketID, &clients->nbPairs, sizeof(int));
-	// 		//Envoi des pairs
-	// 		write(data->socketID, pairs, clients->nbPairs*sizeof(adresseIP));
-	// 	}
-	// }
+	char *search;
+	int numRes, numRead;
+	sFileTab *result;
+
+	numRead = -1;
+	search = malloc(LIGNE_MAX*sizeof(char));
+	memset(search, 0, LIGNE_MAX*sizeof(char));
+	//Réception du choix fait à partir du menu
+	numRead = recv(data->canal, search, LIGNE_MAX*sizeof(char), 0);
+	if(numRead < 0)
+		printd("Il y a une erreur.\n");
+	printf("Terme de la recherche : %s\n", search);
+	result = searchFileList(fichiers,search);
+	numRes = result->length;
+
+	//Envoi du nombre de fichiers trouvés
+	write(data->canal, &numRes, sizeof(int));
+	if(numRes > 0)
+		write(data->canal, result->tab, numRes*sizeof(sFile));
 	printf("Recherche de fichiers !\n");
 }
 
@@ -250,34 +202,37 @@ void traitementAnnonce(DataSpec *data)
 
 void affichageFichiers(DataSpec *data)
 {
-	//Déclarations
-	// fichierSimple *envoi;
-	// int i = 0;
-	// listeFichiers *resultat;
-	// resultat = fichiers;
-	
-	// envoi = malloc(nbFichiers*sizeof(fichierSimple));
-	
-	// //Conversion de la liste en un tableau
-	// for (i=0; i<nbFichiers ; i++)
-	// {
-	// 	if (resultat == NULL)
-	// 		erreur_IO("fonction recherche");
-	// 	envoi[i].id = resultat->id;
-	// 	strcpy(envoi[i].nom,resultat->nom);
-	// 	resultat = resultat->suiv;
-	// }
-	
-	// //Annonce nombre de fichiers
-	// write(data->socketID,&nbFichiers,sizeof(int));
-	// //envoi tab
-	// write(data->socketID, envoi, nbFichiers*sizeof(fichierSimple));
+	// //Déclarations
+	sFile *walk;
+	size_t ftSize;
+	sFileTab *ft;
+
+	walk = fichiers->first;
+	ftSize = 0;
+	ft = malloc(sizeof(sFileTab));
+	ft->length = 0;
+	ft->tab = NULL;
+
+	while(walk != NULL){
+		ftSize += sizeof(sFile);
+		ft->tab = realloc(ft->tab, ftSize);
+		strcpy(ft->tab[ft->length].name,walk->name);
+		ft->tab[ft->length].id = walk->id;
+		ft->length++;
+		walk = walk->next;
+	}
+
+	//Annonce nombre de fichiers
+	write(data->canal,&ft->length,sizeof(int));
+	//envoi tab
+	write(data->canal, ft->tab, ftSize);
 	printf("Affichage des fichiers présents.\n");
 }
 
 void finConnexion(DataSpec *data)
 {
 	//suppressionIPFichiers(fichiers, data->IPClient);
+	freeFileList(fichiers);
 	close(data->canal);
 	data->canal = -1;
 }

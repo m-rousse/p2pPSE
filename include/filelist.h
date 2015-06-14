@@ -3,8 +3,8 @@
 #define SAVEFILE "./downloads.txt"
 
 typedef struct sClient{
-	int 			IP; 			//adresse IP du client
-	struct sClient *next; 	//client suivant dans la liste
+	unsigned int 	IP; 	//adresse IP du client
+	struct sClient 	*next; 	//client suivant dans la liste
 } sClient;
 
 typedef struct sClientList{
@@ -16,7 +16,7 @@ typedef struct sFile {
 	int 			id;					// Identifier of the file
 	char 			name[LIGNE_MAX];	// Name of the file (on filesystem)
 	struct sFile 	*next;				// Next file in case of a list of files
-	sClientList	clients;				// Clients who have the file
+	sClientList		clients;			// Clients who have the file
 } sFile;
 
 typedef struct sFileList {
@@ -32,7 +32,6 @@ typedef struct sFileTab {
 } sFileTab;
 
 
-void sendFileList();
 sFileList* initFileList();
 void restoreFileList(sFileList* fl);
 void saveFileList(sFileList* fl);
@@ -44,3 +43,5 @@ void freeFileList(sFileList* fl);
 int announceFiles(sFileList *fl, sFileTab clientFiles, unsigned int clientIP);
 int addFile(sFileList *fl, sFile f, unsigned int clientIP);
 int addClient(sClientList *clients, unsigned int clientIP);
+sFileTab *searchFileList(sFileList *fl, char *search);
+void deleteIPFileList(sFileList *fl, unsigned int IP);

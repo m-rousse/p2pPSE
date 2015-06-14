@@ -35,7 +35,7 @@ int main(){
 	restoreFileList(fileList);
 
 	printd("Annonce des fichiers possédés");
-	sendFileList();
+	announceServer(serverAddr,fileList);
 
 	printd("Lancement du thread d'UL");
 	printd("Lancement du thread de DL");
@@ -125,13 +125,29 @@ int main(){
 		// Traitement de la commande
 		switch(menu){
 			case '1':
+				ret = dialog_inputbox("Recherche", "Entrez votre recherche", 10, 30, "", 0);
+				clrtobot();
+				if(ret == 0){
+					initServerConn(&serverAddr);
+					searchServer(serverAddr, dialog_vars.input_result);
+				}else{
+					ret = dialog_msgbox("Recherche", "\nErreur à la saisie", 10, 30, 0);
+				}
+				break;
+			case '2':
+				requestFileServer(serverAddr);
+				break;
+			case '3':
+				announceServer(serverAddr,fileList);
+				break;
+			case '4':
 				printd("Affichage des clients\n");
 				printThreads(&tList);
 				break;
-			case '2':
+			case '5':
 				printFileList(fileList);
 				break;
-			case '3':
+			case '6':
 				ret = dialog_inputbox("Se connecter a un client", "Entrez l'adresse IP", 10, 30, "", 0);
 				clrtobot();
 
@@ -162,12 +178,9 @@ int main(){
 					}
 				}
 				break;
-			case '4':
+			case '7':
 				printw("Say goobye to your server 3:)");
-				sendServerCmd(serverAddr,4);
-				break;
-			case '5':
-				announceServer(serverAddr,fileList);
+				sendServerCmd(serverAddr,7);
 				break;
 			case 'q':
 				continuer = 0;
@@ -189,13 +202,19 @@ int main(){
 void printMenu(){
 	clear();
 	//attron(A_BOLD | A_UNDERLINE);
-	printw("==== Menu ====\n");
-	printw("1 - Afficher les clients\n");
-	printw("2 - Afficher les fichiers possédés\n");
-	printw("3 - Se connecter à un client\n");
-	printw("4 - Arreter le serveur\n");
-	printw("\n");
-	printw("q - Quit\n");
+	printw("	\n");
+	printw("	================ Menu ================\n");
+	printw("	1 - Rechercher un fichier\n");
+	printw("	2 - Afficher les fichiers disponibles\n");
+	printw("	\n");
+	printw("	-----> Debug\n");
+	printw("	3 - Annoncer les fichiers possédés\n");
+	printw("	4 - Afficher les peers\n");
+	printw("	5 - Afficher les fichiers possédés\n");
+	printw("	6 - Se connecter à un client\n");
+	printw("	7 - Arreter le serveur\n");
+	printw("	\n");
+	printw("	q - Quit\n");
 	//attroff(A_BOLD | A_UNDERLINE);
 }
 
@@ -309,7 +328,7 @@ void printThreads(threadList* list){
 }
 
 int initServerConn(struct sockaddr_in **serverAddr){
-	*serverAddr = resolv("192.168.161.189", "24240");
+	*serverAddr = resolv("172.16.144.228", "24240");
 	if(*serverAddr == NULL)
 		erreur("Resolution DNS impossible\n");
 	freeResolv();
@@ -362,6 +381,72 @@ int announceServer(struct sockaddr_in *serverAddr, sFileList* fileList){
 	send(sock, (void *) &cmd, sizeof(cmd), 0);
 	send(sock, (void *) &i, sizeof(i),0);
 	send(sock, (void *) buf, flSize, 0);
+	close(sock);
+	return 0;
+}
+
+int searchServer(struct sockaddr_in *serverAddr, char* search){
+	int 		sock, i, cmd, recvSize;
+	size_t 		filesSize;
+	sFileTab 	fileTab;
+	char		buf[LIGNE_MAX];
+
+	// Envoi de la commande recherche + terme recherché
+	cmd = 1;
+	memset(buf, 0, LIGNE_MAX*sizeof(char));
+	strcpy(buf, search);
+	sock = serverOpen(serverAddr);
+	send(sock, (void *) &cmd, sizeof(cmd), 0);
+	send(sock, (void *) search, LIGNE_MAX*sizeof(char), 0);
+
+	// Reception des résultats
+	recv(sock, &recvSize, sizeof(recvSize), 0);
+	filesSize = recvSize*sizeof(sFile);
+	fileTab.length = recvSize;
+	if(recvSize > 0){
+		fileTab.tab = malloc(filesSize);
+		recv(sock, fileTab.tab, filesSize, 0);
+	}else{
+		fileTab.tab = NULL;
+	}
+
+	//Parcours du tableau des fichiers à ajouter
+	for(i = 0; i < fileTab.length; i++){
+		printFile(&fileTab.tab[i]);
+	}
+	if(recvSize == 0)
+		printd("Aucun fichier n'a été trouvé.\n");
+	close(sock);
+	return 0;
+}
+
+int requestFileServer(struct sockaddr_in *serverAddr){
+	int 		sock, i, cmd, recvSize;
+	size_t 		filesSize;
+	sFileTab 	fileTab;
+
+	// Envoi de la commande recherche
+	cmd = 2;
+	sock = serverOpen(serverAddr);
+	send(sock, (void *) &cmd, sizeof(cmd), 0);
+
+	// Reception des résultats
+	recv(sock, &recvSize, sizeof(recvSize), 0);
+	filesSize = recvSize*sizeof(sFile);
+	fileTab.length = recvSize;
+	if(recvSize > 0){
+		fileTab.tab = malloc(filesSize);
+		recv(sock, fileTab.tab, filesSize, 0);
+	}else{
+		fileTab.tab = NULL;
+	}
+
+	//Parcours du tableau des fichiers à afficher
+	for(i = 0; i < fileTab.length; i++){
+		printFile(&fileTab.tab[i]);
+	}
+	if(recvSize == 0)
+		printd("Aucun fichier n'a été trouvé.\n");
 	close(sock);
 	return 0;
 }
