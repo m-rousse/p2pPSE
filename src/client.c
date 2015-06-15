@@ -2,6 +2,7 @@
 
 sFileList 		*fileList;
 sChunksTab		tmpQueue;
+pthread_mutex_t mtxTmpQueue = PTHREAD_MUTEX_INITIALIZER;
 sChunksList		inQueue;
 pthread_mutex_t mtxInQueue = PTHREAD_MUTEX_INITIALIZER;
 sChunksList		outQueue;
@@ -504,7 +505,9 @@ void *tUL(void *arg)
 				pthread_exit(NULL);
 			}
 			sendto(fd, buf, sizeof(buf), 0, (struct sockaddr *) &servAddr, sizeof(servAddr));
+			pthread_mutex_lock(&mtxOutQueue);
 			removeChunk(&outQueue, walk);
+			pthread_mutex_unlock(&mtxOutQueue);
 			fclose(in);
 			close(fd);
 			free(buf);
@@ -569,8 +572,9 @@ void getCommand(int peer){
 			sendFileDetails(peer);
 			break;
 		case 2:
-			// MUTEX
+			pthread_mutex_lock(&mtxOutQueue);
 			queueChunks(peer, &outQueue);
+			pthread_mutex_unlock(&mtxOutQueue);
 			break;
 		default:
 			break;
@@ -645,8 +649,9 @@ int launchDL(sFile *file){
 			chunk->next = NULL;
 			chunk->client.IP = cWalk->IP;
 			chunk->client.next = NULL;
-			// MUTEX
+			pthread_mutex_lock(&mtxTmpQueue);
 			addToChunkTab(&tmpQueue, chunk);
+			pthread_mutex_unlock(&mtxTmpQueue);
 		}
 		tmpPeer = connectClient(cWalk);
 		cmd = 2;
@@ -656,7 +661,7 @@ int launchDL(sFile *file){
 		numBytes = write(tmpPeer, &tmpQueue.length, sizeof(int));
 		if(numBytes < 0)
 			return -1;
-		// MUTEX
+		pthread_mutex_lock(&mtxTmpQueue);
 		numChunks = tmpQueue.length;
 		numBytes = write(tmpPeer, tmpQueue.tab, numChunks*sizeof(sChunks));
 		if(numBytes < 0)
@@ -670,9 +675,12 @@ int launchDL(sFile *file){
 			chunk->num = tmpQueue.tab[i].num;
 			memcpy(chunk->hash, tmpQueue.tab[i].hash, MD5_DIGEST_LENGTH);
 			chunk->next = NULL;
+			pthread_mutex_lock(&mtxInQueue);
 			addToChunkQueue(&inQueue, chunk);
+			pthread_mutex_unlock(&mtxInQueue);
 		}
 		cWalk = cWalk->next;
+		pthread_mutex_unlock(&mtxTmpQueue);
 	}
 	return 0;
 }
