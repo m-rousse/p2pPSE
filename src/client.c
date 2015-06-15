@@ -533,17 +533,18 @@ void *tDL(void *arg)
 	memset((char *)&listAddr, 0, sizeof(listAddr));
 	listAddr.sin_family = AF_INET;
 	listAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	listAddr.sin_port = htons(UDP_PORT);
+	listAddr.sin_port = htons(atoi(UDP_PORT));
 
 	if(bind(fd, (struct sockaddr *) &listAddr, sizeof(listAddr)) < 0)
 		pthread_exit(NULL);
 
 	buf = malloc(sizeof(sData));
+	memset(buf, 0, sizeof(sData));
 
 	while(!data->quit){
 		usleep(500);
 		if(inQueue.length > 0){
-			recvlen = recvfrom(fd, buf, sizeof(buf), MSG_DONTWAIT, (struct sockaddr *) &cliAddr, &addrLen);
+			recvlen = recvfrom(fd, buf, sizeof(buf), 0, (struct sockaddr *) &cliAddr, &addrLen);
 			if(recvlen > 0){
 				processIncoming(&inQueue, buf);
 			}
@@ -579,14 +580,22 @@ void getCommand(int peer){
 
 void processIncoming(sChunksList *cl, sData *d){
 	sChunks 	*walk;
+	sFile 		*file;
+	FILE 		*f;
 
 	walk = cl->first;
 	if(d == NULL)
 		return;
 	while(walk != NULL){
 		if(d->fileID == walk->fileID && d->num == walk->num){
-			removeChunk(cl, walk);
 			// Ajouter le contenu du paquet au fichier
+			file = getFileById(fileList,walk->fileID);
+			if(file == NULL)
+				;
+			f = fopen(file->name, "wb+");
+			fwrite(d->data, CHUNK_SIZE, 1, f);
+			fclose(f);
+			removeChunk(cl, walk);
 		}
 		walk = walk->next;
 	}
