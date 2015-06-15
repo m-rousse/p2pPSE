@@ -430,7 +430,8 @@ void printFiles(){
 	sFile 	*walk;
 	char	buf[LIGNE_MAX];
 
-	wprintw(stdscr,"\t======== Téléchargements =======\n");
+	wprintw(stdscr,"\t========== Téléchargements ==========\n");
+	wprintw(stdscr,"\tThreadUL %d\t-\tThreadDL %d\n", outQueue.length, inQueue.length);
 	wprintw(stdscr,"\t");
 	attron(A_BOLD | A_UNDERLINE);
 	wprintw(stdscr,"fileID\tE\tP\tD\t");
@@ -447,12 +448,66 @@ void printFiles(){
 void *tUL(void *arg)
 {
 	//Déclarations
-	DataSpec *data = (DataSpec *) arg;
+	DataSpec 	*data = (DataSpec *) arg;
+	struct sockaddr_in 	servAddr;
+	int 				fd;
+	sData				*buf;
+	struct hostent 		*hp;
+	sChunks 			*walk;
+	sFile 				*file;
+	FILE 				*in;
+	int 				bytes;
+
 	while(!data->quit){
 		usleep(500);
 		if(outQueue.length > 0){
-			dialog_msgbox("Thread Upload", "DU TRAVAIIILLLL ! :O", 10, 30, 1);
-			sleep(5);
+			walk = outQueue.first;
+
+			fd = socket(AF_INET, SOCK_DGRAM, 0);
+			if(fd < 0)
+				pthread_exit(NULL);
+
+			memset((char*)&servAddr, 0, sizeof(servAddr));
+			servAddr.sin_family = AF_INET;
+			servAddr.sin_port = htons(UDP_PORT);
+
+			hp = gethostbyname(stringIP(ntohl(walk->client.IP)));
+			if(!hp){
+				close(fd);
+				pthread_exit(NULL);
+			}
+			memcpy((void *)&servAddr.sin_addr, hp->h_addr_list[0], hp->h_length);
+
+			buf = malloc(sizeof(sData));
+			if(buf == NULL){
+				close(fd);
+				pthread_exit(NULL);
+			}
+			buf->fileID = walk->fileID;
+			buf->num = walk->num;
+
+			file = getFileById(fileList, walk->fileID);
+			if(file == NULL){
+				close(fd);
+				pthread_exit(NULL);
+			}
+			in = fopen(file->name, "rb");
+			if(in == NULL){
+				close(fd);
+				pthread_exit(NULL);
+			}
+			fseek(in, walk->num*CHUNK_SIZE, SEEK_SET);
+			bytes = fread(buf->data, CHUNK_SIZE, 1, in);
+			if(bytes < 0){
+				fclose(in);
+				close(fd);
+				pthread_exit(NULL);
+			}
+			sendto(fd, buf, sizeof(buf), 0, (struct sockaddr *) &servAddr, sizeof(servAddr));
+			removeChunk(&outQueue, walk);
+			fclose(in);
+			close(fd);
+			free(buf);
 		}
 	}
 	printf("C'est la fin pour moi ! (%d)\n", (int) data->id);
@@ -463,14 +518,40 @@ void *tDL(void *arg)
 {
 	//Déclarations
 	DataSpec *data = (DataSpec *) arg;
+	struct sockaddr_in 	listAddr;
+	struct sockaddr_in 	cliAddr;
+	socklen_t 			addrLen = sizeof(cliAddr);
+	int 				recvlen;
+	int 				fd;
+	sData				*buf;
+
+	fd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (fd < 0) {
+		pthread_exit(NULL);
+	}
+
+	memset((char *)&listAddr, 0, sizeof(listAddr));
+	listAddr.sin_family = AF_INET;
+	listAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	listAddr.sin_port = htons(UDP_PORT);
+
+	if(bind(fd, (struct sockaddr *) &listAddr, sizeof(listAddr)) < 0)
+		pthread_exit(NULL);
+
+	buf = malloc(sizeof(sData));
+
 	while(!data->quit){
 		usleep(500);
 		if(inQueue.length > 0){
-			dialog_msgbox("Thread Upload", "DU TRAVAIIILLLL ! :O", 10, 30, 1);
-			sleep(5);
+			recvlen = recvfrom(fd, buf, sizeof(buf), MSG_DONTWAIT, (struct sockaddr *) &cliAddr, &addrLen);
+			if(recvlen > 0){
+				processIncoming(&inQueue, buf);
+			}
 		}
 	}
 	printf("C'est la fin pour moi ! (%d)\n", (int) data->id);
+	free(buf);
+	close(fd);
 	pthread_exit(NULL);
 }
 
@@ -496,6 +577,21 @@ void getCommand(int peer){
 	close(peer);
 }
 
+void processIncoming(sChunksList *cl, sData *d){
+	sChunks 	*walk;
+
+	walk = cl->first;
+	if(d == NULL)
+		return;
+	while(walk != NULL){
+		if(d->fileID == walk->fileID && d->num == walk->num){
+			removeChunk(cl, walk);
+			// Ajouter le contenu du paquet au fichier
+		}
+		walk = walk->next;
+	}
+}
+
 int launchDL(sFile *file){
 	sClient 		*cWalk;
 	int 			tmpPeer;
@@ -503,6 +599,7 @@ int launchDL(sFile *file){
 	int 			cmd;
 	int 			i;
 	int 			k;
+	int 			numChunks;
 	sFileDetails 	*fd;
 	sChunks 		*chunk;
 
@@ -537,15 +634,35 @@ int launchDL(sFile *file){
 			chunk->num = k;
 			memset(chunk->hash, 0, MD5_DIGEST_LENGTH);
 			chunk->next = NULL;
+			chunk->client.IP = cWalk->IP;
+			chunk->client.next = NULL;
 			// MUTEX
 			addToChunkTab(&tmpQueue, chunk);
 		}
 		tmpPeer = connectClient(cWalk);
 		cmd = 2;
 		numBytes = write(tmpPeer, &cmd, sizeof(int));
-		write(tmpPeer, &tmpQueue.length, sizeof(int));
+		if(numBytes < 0)
+			return -1;
+		numBytes = write(tmpPeer, &tmpQueue.length, sizeof(int));
+		if(numBytes < 0)
+			return -1;
 		// MUTEX
-		write(tmpPeer, tmpQueue.tab, tmpQueue.length*sizeof(sChunks));
+		numChunks = tmpQueue.length;
+		numBytes = write(tmpPeer, tmpQueue.tab, numChunks*sizeof(sChunks));
+		if(numBytes < 0)
+			return -1;
+		numBytes = read(tmpPeer, tmpQueue.tab, numChunks*sizeof(sChunks));
+		if(numBytes < 0)
+			return -1;
+		for(i = 0; i < numChunks; i++){
+			chunk = malloc(sizeof(sChunks));
+			chunk->fileID = tmpQueue.tab[i].fileID;
+			chunk->num = tmpQueue.tab[i].num;
+			memcpy(chunk->hash, tmpQueue.tab[i].hash, MD5_DIGEST_LENGTH);
+			chunk->next = NULL;
+			addToChunkQueue(&inQueue, chunk);
+		}
 		cWalk = cWalk->next;
 	}
 	return 0;
@@ -621,6 +738,8 @@ int queueChunks(int peer, sChunksList* chunkQueue){
 	int 		i;
 	sChunks 	*tmp;
 	char		blank[MD5_DIGEST_LENGTH];
+	struct sockaddr_in peerAddr;
+	socklen_t	peerLen;
 
 	numBytes = read(peer, &numChunks, sizeof(int));
 	if(numBytes < 0)
@@ -633,17 +752,26 @@ int queueChunks(int peer, sChunksList* chunkQueue){
 	if(numBytes < 0)
 		return -1;
 
+	peerLen = sizeof(peerAddr);
+	getpeername(peer, (struct sockaddr *) &peerAddr, &peerLen);
+
 	memset(&blank, 0, MD5_DIGEST_LENGTH);
 	for(i = 0; i < numChunks; i++){
 		tmp = malloc(sizeof(sChunks));
 		tmp->fileID = tab.tab[i].fileID;
 		tmp->num = tab.tab[i].num;
 		memcpy(tmp->hash, tab.tab[i].hash, MD5_DIGEST_LENGTH);
-		if(memcmp(tmp->hash,blank,MD5_DIGEST_LENGTH))
+		if(memcmp(tmp->hash,blank,MD5_DIGEST_LENGTH)){
 			computeMD5(tmp->hash, tmp->num, tmp->fileID);
+			memcpy(tab.tab[i].hash, tmp->hash, MD5_DIGEST_LENGTH);
+		}
+		tmp->client.IP = peerAddr.sin_addr.s_addr;
 		tmp->next = NULL;
 		addToChunkQueue(chunkQueue, tmp);
 	}
+	numBytes = write(peer, tab.tab, sizeof(sChunks)*numChunks);
+	if(numBytes < 0)
+		return -1;
 
 	free(tab.tab);
 	return 0;

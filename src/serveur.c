@@ -154,6 +154,9 @@ void *traitement(void *arg)
 			case 9:
 				sendFileClient(data);
 				break;
+			case 10:
+				printDebug(data);
+				break;
 			default:
 				break;				
 		}
@@ -292,4 +295,10 @@ void disconnectClient(DataSpec *data)
 	deleteIPFileList(fichiers, data->clientIP);
 	close(data->canal);
 	data->canal = -1;
+}
+
+void printDebug(DataSpec *data){
+	char buf[LIGNE_MAX];
+	read(data->canal, buf, LIGNE_MAX*sizeof(char));
+	printd(buf);
 }

@@ -2,6 +2,8 @@
 #include <openssl/md5.h>
 
 #define SAVEFILE "./downloads.txt"
+#define	CHUNK_SIZE	8192
+#define UDP_PORT	24242
 
 typedef struct sClient{
 	unsigned int 	IP; 	//adresse IP du client
@@ -49,6 +51,7 @@ typedef struct sChunks {
 	int 			fileID;					// Identifier of the file
 	int 			num;					// Number of the chunk
 	unsigned char  	hash[MD5_DIGEST_LENGTH];// Hash of the chunk
+	sClient 		client;
 	struct sChunks	*next;
 } sChunks;
 
@@ -61,6 +64,12 @@ typedef struct sChunksTab {
 	int 			length;	// Number of chunks in the list
 	sChunks* 		tab;	// First element of the list
 } sChunksTab;
+
+typedef struct sData {
+	int 			fileID;					// Identifier of the file
+	int 			num;					// Number of the chunk
+	char			data[CHUNK_SIZE];
+} sData;
 
 sFileList* initFileList();
 void restoreFileList(sFileList* fl);
@@ -82,3 +91,4 @@ void initClientList(sClientList *cl);
 sFile* getFileById(sFileList *fl, int id);
 int addToChunkQueue(sChunksList *cl, sChunks *c);
 int addToChunkTab(sChunksTab *ct, sChunks *c);
+void removeChunk(sChunksList *cl, sChunks *c);

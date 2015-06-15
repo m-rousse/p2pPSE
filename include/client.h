@@ -5,8 +5,6 @@
 #include <dialog.h>
 #include <openssl/md5.h>
 
-#define	CHUNK_SIZE	8192
-
 typedef struct clientArgs{
 	int socket;
 	int commandeType;
@@ -38,3 +36,4 @@ int launchDL(sFile *file);
 int sendCommand(int cmd, int peer);
 int computeMD5(unsigned char *buf, int chunkNum, int fileID);
 void printMD5(unsigned char md5[MD5_DIGEST_LENGTH]);
+void processIncoming(sChunksList *cl, sData *d);

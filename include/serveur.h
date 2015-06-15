@@ -12,3 +12,4 @@ void affichageFichiers(DataSpec *data);
 void quitServer(DataSpec *data);
 void disconnectClient(DataSpec *data);
 void sendFileClient(DataSpec *data);
+void printDebug(DataSpec *data);

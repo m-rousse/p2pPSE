@@ -319,3 +319,24 @@ int addToChunkTab(sChunksTab *ct, sChunks *c)
 	ct->length++;
 	return 0;
 }
+
+void removeChunk(sChunksList *cl, sChunks *c){
+	sChunks 	*walk;
+	sChunks 	*prev;
+
+	prev = NULL;
+	walk = cl->first;
+	while(walk != NULL){
+		if(walk == c){
+			if(prev == NULL)
+				cl->first = c->next;
+			else
+				prev->next = c->next;
+			free(c);
+			cl->length--;
+			break;
+		}
+		prev = walk;
+		walk = walk->next;
+	}
+}
