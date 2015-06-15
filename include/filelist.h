@@ -3,7 +3,10 @@
 
 #define SAVEFILE "./downloads.txt"
 #define	CHUNK_SIZE	8192
-#define UDP_PORT	24242
+#define SRV_ADDR	"172.16.144.238"
+#define SRV_PORT	"24240"
+#define CLI_PORT	"24241"
+#define UDP_PORT	"24242"
 
 typedef struct sClient{
 	unsigned int 	IP; 	//adresse IP du client

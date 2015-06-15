@@ -69,7 +69,7 @@ int main(){
 
 	listenAddr.sin_family = AF_INET;
 	listenAddr.sin_addr.s_addr = INADDR_ANY;
-	listenAddr.sin_port = htons(24241);
+	listenAddr.sin_port = htons(atoi(CLI_PORT));
 
 	ret = bind(listenSocket, (struct sockaddr *) &listenAddr, sizeof(listenAddr));
 	if(ret < 0)
@@ -244,7 +244,7 @@ void processMenu(char keycode, int *nbSox, int *continuer){
 }
 
 int initServerConn(struct sockaddr_in **serverAddr){
-	*serverAddr = resolv("172.16.144.238", "24240");
+	*serverAddr = resolv(SRV_ADDR, SRV_PORT);
 	if(*serverAddr == NULL)
 		erreur("Resolution DNS impossible\n");
 	freeResolv();
@@ -469,7 +469,7 @@ void *tUL(void *arg)
 
 			memset((char*)&servAddr, 0, sizeof(servAddr));
 			servAddr.sin_family = AF_INET;
-			servAddr.sin_port = htons(UDP_PORT);
+			servAddr.sin_port = htons(atoi(UDP_PORT));
 
 			hp = gethostbyname(stringIP(ntohl(walk->client.IP)));
 			if(!hp){
@@ -683,7 +683,7 @@ int connectClient(sClient *c){
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if(sock < 0)
 		return -1;
-	sa = resolv(stringIP(c->IP), "24241");
+	sa = resolv(stringIP(c->IP), CLI_PORT);
 	if(sa == NULL)
 		return -1;
 	ret = connect(sock, (struct sockaddr *) sa, sizeof(struct sockaddr_in));
