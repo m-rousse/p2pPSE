@@ -293,3 +293,29 @@ sFile* getFileById(sFileList *fl, int id){
 	}
 	return walk;
 }
+
+//Ajout d'un chunk au début de la liste
+int addToChunkQueue(sChunksList *cl, sChunks *c)
+{
+	//Déclarations
+	sChunks *tmp;
+
+	if(cl->first == NULL){
+		cl->first = c;
+	}else{
+		tmp = cl->first;
+		cl->first = c;
+		c->next = tmp;
+	}
+	cl->length++;
+	return 0;
+}
+
+//Ajout d'un chunk au début de la liste
+int addToChunkTab(sChunksTab *ct, sChunks *c)
+{
+	ct->tab = realloc(ct->tab, sizeof(sChunks)*(ct->length+1));
+	memcpy(&ct->tab[ct->length], c, sizeof(sChunks));
+	ct->length++;
+	return 0;
+}

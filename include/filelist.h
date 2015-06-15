@@ -1,4 +1,5 @@
 #include <pse.h>
+#include <openssl/md5.h>
 
 #define SAVEFILE "./downloads.txt"
 
@@ -38,6 +39,28 @@ typedef struct sFileTab {
 	sFile* 			tab;	// First element of the list
 } sFileTab;
 
+typedef struct sFileDetails {
+	int 			id;					// Identifier of the file
+	int 			size;				// Size of the file
+	int 			nbChunks;			// Number of chunks that compose the file
+} sFileDetails;
+
+typedef struct sChunks {
+	int 			fileID;					// Identifier of the file
+	int 			num;					// Number of the chunk
+	unsigned char  	hash[MD5_DIGEST_LENGTH];// Hash of the chunk
+	struct sChunks	*next;
+} sChunks;
+
+typedef struct sChunksList {
+	int 			length;	// Number of chunks in the list
+	sChunks* 		first;	// First element of the list
+} sChunksList;
+
+typedef struct sChunksTab {
+	int 			length;	// Number of chunks in the list
+	sChunks* 		tab;	// First element of the list
+} sChunksTab;
 
 sFileList* initFileList();
 void restoreFileList(sFileList* fl);
@@ -57,3 +80,5 @@ void initFile(sFile *f);
 void initClient(sClient *c);
 void initClientList(sClientList *cl);
 sFile* getFileById(sFileList *fl, int id);
+int addToChunkQueue(sChunksList *cl, sChunks *c);
+int addToChunkTab(sChunksTab *ct, sChunks *c);

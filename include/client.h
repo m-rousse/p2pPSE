@@ -3,37 +3,21 @@
 #include <ncurses.h>
 #include <sys/time.h>
 #include <dialog.h>
+#include <openssl/md5.h>
+
+#define	CHUNK_SIZE	8192
 
 typedef struct clientArgs{
 	int socket;
 	int commandeType;
 } clientArgs;
 
-typedef struct thread_t{
-	pthread_t 		*thread;
-	struct thread_t	*next;
-	struct thread_t	*prev;
-	clientArgs		*args;
-} thread_t;
-
-typedef struct threadList{
-	thread_t *first;
-	thread_t *last;
-} threadList;
-
 typedef struct commande{
 	int type;
 } commande;
 
 void printMenu();
-void processMenu(char keycode, threadList *tList, int *nbSox, int *continuer);
-void *incomingClient(void *args);
-void *outgoingClient(void *args);
-thread_t *createThread();
-void addThread(threadList* list, thread_t *t);
-thread_t *removeThread(threadList** list, thread_t *t);
-void printThreads(threadList* list);
-void destroyThread(thread_t *t);
+void processMenu(char keycode, int *nbSox, int *continuer);
 int initServerConn(struct sockaddr_in **serverAddr);
 int serverOpen();
 int sendServerCmd(int cmd);
@@ -42,4 +26,15 @@ int announceServer();
 int searchServer(char* search);
 int requestFileListFromServer();
 int requestFile(char* fileID);
+void *tUL(void *arg);
+void *tDL(void *arg);
 void printFiles();
+void getCommand(int peer);
+off_t fsize(const char *file);
+int sendFileDetails(int peer);
+int queueChunks(int peer, sChunksList* chunkQueue);
+int connectClient(sClient *c);
+int launchDL(sFile *file);
+int sendCommand(int cmd, int peer);
+int computeMD5(unsigned char *buf, int chunkNum, int fileID);
+void printMD5(unsigned char md5[MD5_DIGEST_LENGTH]);

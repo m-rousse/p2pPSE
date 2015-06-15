@@ -1,23 +1,42 @@
 #include <client.h>
 
-sFileList* fileList;
+sFileList 		*fileList;
+sChunksTab		tmpQueue;
+sChunksList		inQueue;
+pthread_mutex_t mtxInQueue = PTHREAD_MUTEX_INITIALIZER;
+sChunksList		outQueue;
+pthread_mutex_t mtxOutQueue = PTHREAD_MUTEX_INITIALIZER;
+
 int main(){
-	int continuer, val, listenSocket, ret, tmpPeer, nbSox, *threadRetVal, clearScr;
-	socklen_t clientAddrLen;
-	char menu;
-	struct timeval timer, start;
-	long microsec, delta;
-	struct sockaddr_in listenAddr, clientAddr, *serverAddr;
-	threadList tList;
-	thread_t *walk;
+	int 		continuer;
+	int 		val;
+	int 		listenSocket;
+	int 		ret;
+	int 		tmpPeer;
+	int 		nbSox;
+	int 		clearScr;
+	socklen_t 	clientAddrLen;
+	char 		menu;
+	struct 		timeval timer, start;
+	long 		microsec, delta;
+	struct 		sockaddr_in listenAddr, clientAddr, *serverAddr;
+	pthread_t 	threadUL;
+	pthread_t 	threadDL;
+	DataSpec	dataUL;
+	DataSpec	dataDL;
 
 	// Initialisation des variables
 	nbSox = 0;
 	clearScr = 0;
-	threadRetVal = (int*) malloc(sizeof(int));
-	tList.first = NULL;
-	tList.last  = NULL;
-	clientAddrLen = sizeof(clientAddr);
+	clientAddrLen 	= sizeof(clientAddr);
+	tmpQueue.tab 	= NULL;
+	tmpQueue.length = 0;
+	inQueue.first 	= NULL;
+	inQueue.length 	= 0;
+	outQueue.first 	= NULL;
+	outQueue.length = 0;
+	dataUL.quit 	= FAUX;
+	dataDL.quit 	= FAUX;
 
 	// Initialisation de NCurses (init, getch non bloquants, pas d'affichage des caractères tapés)
 	initscr();
@@ -38,7 +57,9 @@ int main(){
 	announceServer();
 
 	printd("Lancement du thread d'UL");
+	pthread_create(&threadUL, NULL, tUL, &dataUL);
 	printd("Lancement du thread de DL");
+	pthread_create(&threadDL, NULL, tDL, &dataDL);
 
 	// ##################### ECOUTE #####################
 	printd("Ouverture du socket d'écoute");
@@ -77,26 +98,8 @@ int main(){
 		// Acceptation des nouveaux clients
 		tmpPeer = accept(listenSocket, (struct sockaddr *) &clientAddr, &clientAddrLen);
 		if(tmpPeer >= 0){
-			addThread(&tList, createThread());
-			tList.last->args->socket = tmpPeer;
-			pthread_create(tList.last->thread, NULL, incomingClient, (void*) tList.last->args);
+			getCommand(tmpPeer);
 			nbSox++;
-		}
-
-		// Nettoyage des threads finis
-		walk = tList.first;
-		while(walk != NULL){
-			if(walk->args->socket < 0){
-				pthread_join(*(walk->thread), (void**) &threadRetVal);
-				printd("Fin du thread, retour : %d", *threadRetVal);
-				nbSox--;
-				thread_t *tmp = walk;
-				threadList *tmpList = &tList;
-				walk = removeThread(&tmpList, walk);
-				destroyThread(tmp);
-			}else{
-				walk = walk->next;
-			}
 		}
 
 		// Récupération d'une éventuelle commande
@@ -127,9 +130,11 @@ int main(){
 		move(21,0);
 
 		// Traitement de la commande
-		processMenu(menu, &tList, &nbSox, &continuer);
+		processMenu(menu, &nbSox, &continuer);
 	}
 	
+	dataUL.quit = 1;
+	pthread_join(threadUL, NULL);
 	printd("Sauvegarde de la liste des fichiers possédés");
 	saveFileList(fileList);
 	freeFileList(fileList);
@@ -165,7 +170,7 @@ void printMenu(){
 	//attroff(A_BOLD | A_UNDERLINE);
 }
 
-void processMenu(char keycode, threadList *tList, int *nbSox, int *continuer){
+void processMenu(char keycode, int *nbSox, int *continuer){
 	int ret;
 	sFile *affClientsF;
 	sClient *affClientsC;
@@ -188,7 +193,6 @@ void processMenu(char keycode, threadList *tList, int *nbSox, int *continuer){
 			break;
 		case '4':
 			printd("Affichage des clients\n");
-			printThreads(tList);
 			break;
 		case '5':
 			printFileList(fileList);
@@ -236,115 +240,6 @@ void processMenu(char keycode, threadList *tList, int *nbSox, int *continuer){
 			break;
 		default:
 			break;
-	}
-}
-
-// Gestion des connections provenant d'autres clients
-void *incomingClient(void *args){
-	int* ret;
-	clientArgs *a;
-	commande *comm;
-
-	ret = (int*) malloc(sizeof(int));
-	a = (clientArgs *)args;
-	comm = (commande*) malloc(sizeof(commande));
-
-	// Traitement des commandes
-	recv(a->socket, comm, sizeof(comm), 0);
-
-	switch(comm->type){
-		case 1:
-			move(10,0);
-			printd("Demande d'UL\n");
-			break;
-		default:
-			break;
-	}
-
-	// Fin du thread, fermeture du socket et annonce au thread main que le thread a fini
-	close(a->socket);
-	a->socket = -1;
-	*ret = comm->type;
-	pthread_exit(ret);
-}
-
-// Gestion des connections à destination d'autres clients
-void *outgoingClient(void *args){
-	int* ret;
-	clientArgs *a;
-	commande *comm;
-
-	ret = (int*) malloc(sizeof(int));
-	a = (clientArgs *)args;
-	comm = (commande*) malloc(sizeof(commande));
-
-	// Traitement des commandes
-	comm->type = a->commandeType;
-	send(a->socket, comm, sizeof(comm), 0);
-
-	// Fin du thread, fermeture du socket et annonce au thread main que le thread a fini
-	close(a->socket);
-	a->socket = -1;
-	*ret = comm->type;
-	pthread_exit(ret);
-}
-
-thread_t *createThread(){
-	thread_t *t = (thread_t *) malloc(sizeof(thread_t));
-	t->prev = NULL;
-	t->next = NULL;
-	t->thread = (pthread_t*) malloc(sizeof(pthread_t));
-
-	// Initialisation des arguments du thread
-	t->args = (clientArgs*) malloc(sizeof(clientArgs));
-	t->args->socket = -1;
-	return t;
-}
-
-void destroyThread(thread_t *t){
-	if(t == NULL)
-		return;
-	free(t->args);
-	free(t->thread);
-	free(t);
-}
-
-void addThread(threadList* list, thread_t *t){
-	if(list->first == NULL){
-		list->first = list->last = t;
-	}else{
-		list->last->next = t;
-		t->prev = list->last;
-		list->last = t;
-	}
-}
-
-thread_t *removeThread(threadList** list, thread_t *t){
-	if(t == NULL){
-		return NULL;
-	}
-	if(t->prev == NULL && t->next == NULL){
-		(*list)->first = (*list)->last = NULL;
-	}else if(t-> prev == NULL){
-		(*list)->first = t->next;
-		t->next->prev = NULL;
-		return t->next;
-	}else if(t->next == NULL){
-		(*list)->last = t->prev;
-		t->prev->next = NULL;
-	}else{
-		t->prev->next = t->next;
-		t->next->prev = t->prev;
-		return t->next;
-	}
-	return NULL;
-}
-
-void printThreads(threadList* list){
-	thread_t *walk = list->first;
-	while(walk != NULL){
-		printd("Client thread : %d\n",walk->thread);
-		walk = walk->next;
 	}
 }
 
@@ -525,6 +420,8 @@ int requestFile(char* fileID){
 	}
 	if(recvSize == 0)
 		printd("Aucun fichier n'a été trouvé.\n");
+	else
+		launchDL(file);
 	close(sock);
 	return 0;
 }
@@ -551,6 +448,238 @@ void *tUL(void *arg)
 {
 	//Déclarations
 	DataSpec *data = (DataSpec *) arg;
-	printf("C'est la fin pour moi !\n");
+	while(!data->quit){
+		usleep(500);
+		if(outQueue.length > 0){
+			dialog_msgbox("Thread Upload", "DU TRAVAIIILLLL ! :O", 10, 30, 1);
+			sleep(5);
+		}
+	}
+	printf("C'est la fin pour moi ! (%d)\n", (int) data->id);
 	pthread_exit(NULL);
+}
+
+void *tDL(void *arg)
+{
+	//Déclarations
+	DataSpec *data = (DataSpec *) arg;
+	while(!data->quit){
+		usleep(500);
+		if(inQueue.length > 0){
+			dialog_msgbox("Thread Upload", "DU TRAVAIIILLLL ! :O", 10, 30, 1);
+			sleep(5);
+		}
+	}
+	printf("C'est la fin pour moi ! (%d)\n", (int) data->id);
+	pthread_exit(NULL);
+}
+
+void getCommand(int peer){
+	// 1 - demander infos sur fichier
+	// 2 - demander des morceaux
+	int 	cmd;
+
+	cmd = -1;
+	read(peer, &cmd, sizeof(int));
+
+	switch(cmd){
+		case 1:
+			sendFileDetails(peer);
+			break;
+		case 2:
+			// MUTEX
+			queueChunks(peer, &outQueue);
+			break;
+		default:
+			break;
+	}
+	close(peer);
+}
+
+int launchDL(sFile *file){
+	sClient 		*cWalk;
+	int 			tmpPeer;
+	int 			numBytes;
+	int 			cmd;
+	int 			i;
+	int 			k;
+	sFileDetails 	*fd;
+	sChunks 		*chunk;
+
+	cWalk = file->clients.first;
+
+	if(cWalk != NULL){
+		tmpPeer = connectClient(cWalk);
+		cmd = 1;
+		numBytes = write(tmpPeer, &cmd, sizeof(int));
+		if(numBytes < 0)
+			return -1;
+		numBytes = write(tmpPeer, &file->id, sizeof(int));
+		if(numBytes < 0)
+			return -1;
+
+		fd = malloc(sizeof(sFileDetails));
+		numBytes = read(tmpPeer, fd, sizeof(sFileDetails));
+		if(numBytes < 0)
+			return -1;
+		close(tmpPeer);
+	}
+
+	i = 0;
+	while(cWalk != NULL){
+		// Placer dans le buffer d'entrée tous les chunks à demander
+		// PUIS faire la demande d'envoi
+
+		// Parcours du nombre de chunks pour répartition selon les clients
+		for(k = i; k < fd->nbChunks; k += file->clients.length){
+			chunk = malloc(sizeof(sChunks));
+			chunk->fileID = file->id;
+			chunk->num = k;
+			memset(chunk->hash, 0, MD5_DIGEST_LENGTH);
+			chunk->next = NULL;
+			// MUTEX
+			addToChunkTab(&tmpQueue, chunk);
+		}
+		tmpPeer = connectClient(cWalk);
+		cmd = 2;
+		numBytes = write(tmpPeer, &cmd, sizeof(int));
+		write(tmpPeer, &tmpQueue.length, sizeof(int));
+		// MUTEX
+		write(tmpPeer, tmpQueue.tab, tmpQueue.length*sizeof(sChunks));
+		cWalk = cWalk->next;
+	}
+	return 0;
+}
+
+int sendCommand(int cmd, int peer){
+	write(peer, &cmd, sizeof(int));
+	return 0;
+}
+
+int connectClient(sClient *c){
+	int 				sock;
+	int 				ret;
+	struct sockaddr_in	*sa;
+
+	if(c == NULL)
+		return -1;
+	sock = socket(AF_INET, SOCK_STREAM, 0);
+	if(sock < 0)
+		return -1;
+	sa = resolv(stringIP(c->IP), "24241");
+	if(sa == NULL)
+		return -1;
+	ret = connect(sock, (struct sockaddr *) sa, sizeof(struct sockaddr_in));
+	if(ret < 0)
+		return -1;
+	freeResolv();
+	return sock;
+}
+
+int sendFileDetails(int peer){
+	int 			fileID;
+	int 			numBytes;
+	sFileDetails 	fDetails;
+	sFile 			*file;
+
+	fileID = -1;
+	numBytes = read(peer, &fileID, sizeof(int));
+	if(numBytes < 0)
+		return -1;
+	file = getFileById(fileList, fileID);
+	if(file == NULL)
+		return -1;
+	
+	fDetails.size = fsize(file->name);
+	if(fDetails.size < 0)
+		return -1;
+	
+	fDetails.id = fileID;
+	fDetails.nbChunks = fDetails.size / CHUNK_SIZE + 1;
+
+	numBytes = write(peer, &fDetails, sizeof(sFileDetails));
+	if(numBytes < 0)
+		return -1;
+	return 0;
+}
+
+off_t fsize(const char *file){
+    struct stat st; 
+
+    if (stat(file, &st) == 0)
+        return st.st_size;
+
+    return -1; 
+}
+
+// Recevoir + placer dans la chunkQueue des chunks
+int queueChunks(int peer, sChunksList* chunkQueue){
+	// mtxChunkQueue
+	sChunksTab	tab;
+	int 		numChunks;
+	int 		numBytes;
+	int 		i;
+	sChunks 	*tmp;
+	char		blank[MD5_DIGEST_LENGTH];
+
+	numBytes = read(peer, &numChunks, sizeof(int));
+	if(numBytes < 0)
+		return -1;
+	tab.length = numChunks;
+	tab.tab = malloc(numChunks*sizeof(sChunks));
+	if(tab.tab == NULL)
+		return -1;
+	numBytes = read(peer, tab.tab, sizeof(sChunks)*numChunks);
+	if(numBytes < 0)
+		return -1;
+
+	memset(&blank, 0, MD5_DIGEST_LENGTH);
+	for(i = 0; i < numChunks; i++){
+		tmp = malloc(sizeof(sChunks));
+		tmp->fileID = tab.tab[i].fileID;
+		tmp->num = tab.tab[i].num;
+		memcpy(tmp->hash, tab.tab[i].hash, MD5_DIGEST_LENGTH);
+		if(memcmp(tmp->hash,blank,MD5_DIGEST_LENGTH))
+			computeMD5(tmp->hash, tmp->num, tmp->fileID);
+		tmp->next = NULL;
+		addToChunkQueue(chunkQueue, tmp);
+	}
+
+	free(tab.tab);
+	return 0;
+}
+
+int sendChunkDetails(int peer){
+	return 0;
+}
+
+int computeMD5(unsigned char buf[MD5_DIGEST_LENGTH], int chunkNum, int fileID){
+	FILE 			*in;
+	sFile 			*f;
+	MD5_CTX 		mC;
+	int 			bytes;
+	unsigned char	data[CHUNK_SIZE];
+
+	f = getFileById(fileList, fileID);
+	if(f == NULL)
+		return -1;
+	in = fopen(f->name, "rb");
+	if(in == NULL)
+		return -1;
+	MD5_Init(&mC);
+	fseek(in, chunkNum*CHUNK_SIZE, SEEK_SET);
+	bytes = fread(data, CHUNK_SIZE, 1, in);
+	if(bytes < 0){
+		fclose(in);
+		return -1;
+	}
+	MD5_Update(&mC, data, bytes);
+	MD5_Final(buf, &mC);
+	return 0;
+}
+
+void printMD5(unsigned char md5[MD5_DIGEST_LENGTH]){
+	int 	i;
+	for(i = 0; i < MD5_DIGEST_LENGTH; i++)
+		printf("%02x", md5[i]);
 }

@@ -22,7 +22,7 @@ CLI_BIN	=	${P2PPSE_BIN}/client
 
 CFLAGS = -g -I. -I${P2PPSE_INCL_DIR} -Wall 
 		
-LDLIBS = -L${P2PPSE_LIB} -lp2ppse -lpse -pthread -lncursesw -ldialog -lm
+LDLIBS = -L${P2PPSE_LIB} -lp2ppse -lpse -pthread -lncursesw -ldialog -lm -lssl -lcrypto
 
 CC = gcc
 
